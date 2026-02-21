@@ -12,8 +12,8 @@ using Recrutement_api.Data;
 namespace Recrutement_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260223230613_initialMigration")]
-    partial class initialMigration
+    [Migration("20260225144053_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -360,6 +360,48 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Tenants");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.TenantRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Industry")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Password")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RNE")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("WorkEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TenantRequests");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Utilisateur", b =>
                 {
                     b.Property<Guid>("Id")
@@ -493,7 +535,7 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
-                        .WithMany("Entretiens")
+                        .WithMany()
                         .HasForeignKey("CandidatureId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -564,8 +606,6 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Avis");
-
-                    b.Navigation("Entretiens");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>

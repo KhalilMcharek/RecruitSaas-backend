@@ -214,6 +214,39 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Entreprises");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateScheduled")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<float?>("Score")
+                        .HasColumnType("real");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Transcript")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatureId");
+
+                    b.ToTable("EntretiensIA");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Expert", b =>
                 {
                     b.Property<Guid>("Id")
@@ -309,10 +342,6 @@ namespace Recrutement_api.Migrations
 
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("Statut")
                         .IsRequired()
@@ -498,6 +527,17 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
+                        .WithMany()
+                        .HasForeignKey("CandidatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidature");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Expert", b =>
