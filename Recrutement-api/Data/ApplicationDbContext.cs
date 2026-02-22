@@ -25,6 +25,8 @@ namespace Recrutement_api.Data
         public DbSet<AvisExpert> AvisExperts { get; set; }
 
         public DbSet<AnalyseCV> AnalysesCV { get; set; }
+        public DbSet<EntretienIA> EntretiensIA { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
