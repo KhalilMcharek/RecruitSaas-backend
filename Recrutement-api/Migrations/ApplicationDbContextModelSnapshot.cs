@@ -328,48 +328,6 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Tenants");
                 });
 
-            modelBuilder.Entity("Recrutement_api.Models.TenantRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Industry")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Owner")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Password")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RNE")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("WorkEmail")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TenantRequests");
-                });
-
             modelBuilder.Entity("Recrutement_api.Models.Utilisateur", b =>
                 {
                     b.Property<Guid>("Id")
