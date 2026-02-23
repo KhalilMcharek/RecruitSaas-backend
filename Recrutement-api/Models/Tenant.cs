@@ -10,8 +10,6 @@ namespace Recrutement_api.Models
         public Guid UtilisateurId { get; set; }
         public Utilisateur Utilisateur { get; set; }
 
-        [Required]
-        public string Nom { get; set; }
 
         public string Statut { get; set; } // Actif, Suspendu, Inactif
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;

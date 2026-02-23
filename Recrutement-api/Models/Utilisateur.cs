@@ -22,6 +22,7 @@ namespace Recrutement_api.Models
         public string MotDePasse { get; set; }
 
         public string Prenom { get; set; }
+        [Required]
         public string Nom { get; set; }
 
         [Required]
