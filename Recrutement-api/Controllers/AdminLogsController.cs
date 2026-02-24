@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Recrutement_api.Services;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,13 +12,7 @@ namespace Recrutement_api.Controllers
     public class AdminLogsController : ControllerBase
     {
         private readonly string _logPath;
-        private readonly EmailService _emailService;
-
-        public AdminLogsController(EmailService emailService)
-        {
-            _logPath = Path.Combine(Directory.GetCurrentDirectory(), "logs");
-            _emailService = emailService;
-        }
+       
 
         //  Liste des fichiers de logs
         [HttpGet]
@@ -77,38 +70,6 @@ namespace Recrutement_api.Controllers
             return Ok(filtered);
         }
 
-        //  Statistiques et alerte email si erreurs > seuil
-        [HttpGet("stats/{fileName}")]
-        public async Task<IActionResult> GetStats(string fileName)
-        {
-            var fullPath = Path.GetFullPath(Path.Combine(_logPath, fileName));
-
-            if (!fullPath.StartsWith(_logPath, System.StringComparison.InvariantCultureIgnoreCase))
-                return BadRequest("Invalid file path.");
-
-            if (!System.IO.File.Exists(fullPath))
-                return NotFound("File not found.");
-
-            var lines = System.IO.File.ReadLines(fullPath);
-
-            var total = lines.Count();
-            var errors = lines.Count(l => l.Contains("Error"));
-            var warnings = lines.Count(l => l.Contains("Warning"));
-
-            // Envoi d'alerte email si erreurs > 10
-            if (errors > 10)
-            {
-                await _emailService.SendCriticalAlert(
-                    $"Le fichier {fileName} contient {errors} erreurs !"
-                );
-            }
-
-            return Ok(new
-            {
-                TotalLogs = total,
-                Errors = errors,
-                Warnings = warnings
-            });
-        }
+        
     }
 }
