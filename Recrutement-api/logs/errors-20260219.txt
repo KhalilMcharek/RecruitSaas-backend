@@ -1,2 +1,0 @@
-2026-02-19 23:44:48.878 +01:00 [ERR] Simulated critical error in CandidatController
-2026-02-19 23:45:05.357 +01:00 [ERR] Simulated critical error in CandidatController

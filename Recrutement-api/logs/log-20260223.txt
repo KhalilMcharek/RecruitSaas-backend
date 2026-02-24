@@ -1,7 +1,0 @@
-2026-02-23 14:23:10 [WRN] [Tenant:] Failed to determine the https port for redirect.
-2026-02-23 14:26:27 [INF] [Tenant:Unknown] User accessed Candidat test endpoint
-2026-02-23 14:26:27 [ERR] [Tenant:Unknown] Simulated critical error in CandidatController
-2026-02-23 14:43:14 [INF] [Tenant:Unknown] User accessed Candidat test endpoint
-2026-02-23 14:43:14 [ERR] [Tenant:Unknown] Simulated critical error in CandidatController
-2026-02-23 22:52:06 [WRN] [Tenant:] Failed to determine the https port for redirect.
-2026-02-23 22:57:04 [WRN] [Tenant:] Failed to determine the https port for redirect.
