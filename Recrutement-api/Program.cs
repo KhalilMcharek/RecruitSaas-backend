@@ -1,7 +1,6 @@
 using Serilog;
 using Serilog.Events;
 using Recrutement_api.Middleware;
-using Recrutement_api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -47,7 +46,7 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddTransient<EmailService>();
+
 
 // --------------------------
 // CONFIGURATION JWT (sécurisée)
