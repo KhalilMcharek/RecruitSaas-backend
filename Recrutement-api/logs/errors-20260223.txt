@@ -1,0 +1,2 @@
+2026-02-23 14:26:27 [ERR] [Tenant:Unknown] Simulated critical error in CandidatController
+2026-02-23 14:43:14 [ERR] [Tenant:Unknown] Simulated critical error in CandidatController
