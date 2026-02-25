@@ -12,54 +12,87 @@ namespace Recrutement_api.Data
         {
         }
 
+        // ============================
+        // Auth
+        // ============================
         public DbSet<Utilisateur> Utilisateurs { get; set; }
+
+        // ============================
+        // Tenant
+        // ============================
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Entreprise> Entreprises { get; set; }
         public DbSet<Expert> Experts { get; set; }
+
         public DbSet<Candidat> Candidats { get; set; }
         public DbSet<OffreEmploi> OffresEmploi { get; set; }
         public DbSet<FormulaireCandidature> FormulairesCandidature { get; set; }
         public DbSet<Candidature> Candidatures { get; set; }
         public DbSet<AssignationExpert> AssignationsExperts { get; set; }
         public DbSet<AvisExpert> AvisExperts { get; set; }
+
         public DbSet<AnalyseCV> AnalysesCV { get; set; }
         public DbSet<EntretienIA> EntretiensIA { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
 
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    base.OnModelCreating(modelBuilder);
+            // ============================
+            // INDEXES
+            // ============================
+            modelBuilder.Entity<Utilisateur>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
 
-    // Convertit l'enum RoleUtilisateur en texte dans la DB
-    var roleConverter = new ValueConverter<RoleUtilisateur, string>(
-        v => v.ToString(), // C# enum -> string pour la DB
-        v => (RoleUtilisateur)Enum.Parse(typeof(RoleUtilisateur), v) // string DB -> C# enum
-    );
-    // Convertit l'enum TenantStatus en texte dans la DB
-    var tenantStatusConverter = new ValueConverter<TenantStatus, string>(
-        v => v.ToString(), // C# enum -> string pour la DB
-        v => (TenantStatus)Enum.Parse(typeof(TenantStatus), v) // string DB -> C# enum
-    );
+            modelBuilder.Entity<Candidature>()
+                .HasIndex(c => c.OffreId);
 
-    
-    modelBuilder.Entity<Utilisateur>()
-        .Property(u => u.Role)
-        .HasConversion(roleConverter)   // conversion enum <-> texte
-        .HasMaxLength(20)               // limite taille du texte dans la DB
-        .IsRequired();
+            modelBuilder.Entity<Candidature>()
+                .HasIndex(c => c.CandidatId);
 
+            modelBuilder.Entity<OffreEmploi>()
+                .HasIndex(o => o.EntrepriseId);
 
+            // ============================
+            // ENUM CONVERTERS (AJOUTS)
+            // ============================
 
-    modelBuilder.Entity<Tenant>()
-        .Property(t => t.Statut)
-        .HasConversion(tenantStatusConverter)
-        .HasMaxLength(20)
-        .IsRequired();
+            var roleConverter = new EnumToStringConverter<RoleUtilisateur>();
+            var tenantStatusConverter = new EnumToStringConverter<TenantStatus>();
 
+            modelBuilder.Entity<Utilisateur>()
+                .Property(u => u.Role)
+                .HasConversion(roleConverter);
 
-         modelBuilder.Entity<Candidat>()
-        .Property(c => c.Telephone)
-        .HasMaxLength(50)
-        .IsRequired()
-        .HasDefaultValue("Non précisé");
-}}}
+            modelBuilder.Entity<Tenant>()
+                .Property(t => t.Statut)
+                .HasConversion(tenantStatusConverter);
+
+            // ============================
+            // RELATIONS IMPORTANTES (AJOUTS PROPRES)
+            // ============================
+
+            // Utilisateur - Candidat (1-1)
+            modelBuilder.Entity<Candidat>()
+                .HasOne(c => c.Utilisateur)
+                .WithOne()
+                .HasForeignKey<Candidat>(c => c.UtilisateurId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Utilisateur - Tenant (1-1)
+            modelBuilder.Entity<Tenant>()
+                .HasOne(t => t.Utilisateur)
+                .WithOne()
+                .HasForeignKey<Tenant>(t => t.UtilisateurId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Tenant - Entreprise (1-N)
+            modelBuilder.Entity<Entreprise>()
+                .HasOne(e => e.Tenant)
+                .WithMany(t => t.Entreprises)
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+    }
+}
