@@ -14,13 +14,11 @@ namespace Recrutement_api.DTOs
     [Required]
     public string MotDePasse { get; set; } = string.Empty;
 
-    // Supprimé [Required], valeur par défaut si non envoyé
-    public string Prenom { get; set; } = "Non précisé";
-
+ public string Prenom { get; set; } = string.Empty;
     [Required]
-    public string Nom { get; set; } = "Nom non précisé";
+    public string Nom { get; set; } = string.Empty;
 
-    public string Description { get; set; } = "Description non fournie";
+    public string Description { get; set; } = string.Empty;
 
     public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Candidat;
 }
@@ -55,25 +53,12 @@ namespace Recrutement_api.DTOs
 
     public string Prenom { get; set; } = string.Empty;
 
-    public string Description { get; set; } = "Description non fournie";
+    public string Description { get; set; } = string.Empty;
 
     public string LogoUrl { get; set; } = string.Empty;
 }
 
-    // ==========================
-    // REGISTER TENANT DTO
-    // ==========================
-    public class RegisterTenantDto
-    {
-        [Required]
-        public string TenantName { get; set; } = string.Empty;
 
-        [Required]
-        public string EntrepriseName { get; set; } = string.Empty;
-
-        [Required]
-        public string RNE { get; set; } = string.Empty;
-    }
 
     // ==========================
     // AUTH RESPONSE DTO (JWT)

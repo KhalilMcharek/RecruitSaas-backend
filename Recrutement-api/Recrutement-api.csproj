@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Recrutement_api</RootNamespace>
+    <UserSecretsId>b68e49ca-692f-4cec-84d7-84b3efd24bd3</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

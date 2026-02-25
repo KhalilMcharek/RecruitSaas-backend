@@ -1,22 +1,31 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Models;
-using Microsoft.AspNetCore.Identity;
 
 namespace Recrutement_api.Services
 {
+    // =========================================================
+    // INTERFACE
+    // =========================================================
     public interface IAuthService
     {
         string HashPassword(string password);
         bool VerifyPassword(string password, string hash);
-        Task<Tenant> RegisterTenantAsync(CompanyRegisterDto dto);
+
+        Task<AuthResponseDto> RegisterCandidateAsync(RegisterDto dto);
+        Task<string> RegisterCompanyAsync(CompanyRegisterDto dto);
+        Task<AuthResponseDto> LoginAsync(LoginDto dto);
+
         Task<List<Tenant>> GetPendingTenantsAsync();
         Task ApproveTenantAsync(Guid tenantId);
         Task RejectTenantAsync(Guid tenantId);
-        AuthResponseDto GenerateAuthResponse(Utilisateur user);
     }
 
+    // =========================================================
+    // SERVICE IMPLEMENTATION
+    // =========================================================
     public class AuthService : IAuthService
     {
         private readonly ApplicationDbContext _context;
@@ -28,6 +37,9 @@ namespace Recrutement_api.Services
             _passwordHasher = new PasswordHasher<string>();
         }
 
+        // ============================
+        // PASSWORD MANAGEMENT
+        // ============================
         public string HashPassword(string password)
         {
             return _passwordHasher.HashPassword(null, password);
@@ -39,43 +51,139 @@ namespace Recrutement_api.Services
             return result == PasswordVerificationResult.Success;
         }
 
-        // =============================================
-        // REGISTER TENANT + ENTREPRISE
-        // =============================================
-        public async Task<Tenant> RegisterTenantAsync(CompanyRegisterDto dto)
+        // ============================
+        // REGISTER CANDIDATE
+        // ============================
+        public async Task<AuthResponseDto> RegisterCandidateAsync(RegisterDto dto)
         {
-            // Vérifier si le tenant existe déjà
-            var existingTenant = await _context.Tenants
-                .FirstOrDefaultAsync(t => t.Nom == dto.tenantName);
-            if (existingTenant != null)
-                throw new InvalidOperationException("Un tenant avec ce nom existe déjà.");
+            if (string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.MotDePasse))
+                throw new Exception("Email and password are required.");
 
-            // Créer tenant + entreprise
-            var tenant = new Tenant
+            var emailExists = await _context.Utilisateurs
+                .AnyAsync(u => u.Email == dto.Email);
+
+            if (emailExists)
+                throw new Exception("A user with this email already exists.");
+
+            var user = new Utilisateur
             {
-                Nom = dto.tenantName,
-                Statut = TenantStatus.Pending,
-                CreeLe = DateTime.UtcNow,
-                Entreprises = new List<Entreprise>
-                {
-                    new Entreprise
-                    {
-                        Nom = dto.CompanyName,
-                        RNE = dto.RNE,
-                        Secteur = dto.Secteur
-                    }
-                }
+                Id = Guid.NewGuid(),
+                Email = dto.Email,
+                Nom = dto.Nom ?? "Nom non précisé",
+                Prenom = dto.Prenom ?? "Prénom non précisé",
+                MotDePasseHash = HashPassword(dto.MotDePasse),
+                Role = RoleUtilisateur.Candidat,
+                CreeLe = DateTime.UtcNow
             };
 
-            _context.Tenants.Add(tenant);
+            await _context.Utilisateurs.AddAsync(user);
             await _context.SaveChangesAsync();
 
-            return tenant;
+            var candidat = new Candidat
+            {
+                Id = Guid.NewGuid(),
+                UtilisateurId = user.Id,
+                Telephone = "Non précisé",
+                CreeLe = DateTime.UtcNow
+            };
+
+            await _context.Candidats.AddAsync(candidat);
+            await _context.SaveChangesAsync();
+
+            return GenerateAuthResponse(user);
         }
 
-        // =============================================
-        // ADMIN : Liste tenants en attente
-        // =============================================
+        // ============================
+        // REGISTER COMPANY (TENANT)
+        // ============================
+        public async Task<string> RegisterCompanyAsync(CompanyRegisterDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.WorkEmail) ||
+                string.IsNullOrWhiteSpace(dto.Password) ||
+                string.IsNullOrWhiteSpace(dto.tenantName))
+                throw new Exception("Required fields are missing.");
+
+            var emailExists = await _context.Utilisateurs
+                .AnyAsync(u => u.Email == dto.WorkEmail);
+
+            if (emailExists)
+                throw new Exception("A user with this email already exists.");
+
+            var ceo = new Utilisateur
+            {
+                Id = Guid.NewGuid(),
+                Email = dto.WorkEmail,
+                Nom = dto.tenantName,
+                Prenom = dto.Prenom ?? "",
+                Role = RoleUtilisateur.Tenant,
+                MotDePasseHash = HashPassword(dto.Password),
+                CreeLe = DateTime.UtcNow
+            };
+
+            await _context.Utilisateurs.AddAsync(ceo);
+
+            var tenant = new Tenant
+            {
+                Id = Guid.NewGuid(),
+                Nom = dto.tenantName,
+                UtilisateurId = ceo.Id,
+                Statut = TenantStatus.Pending,
+                CreeLe = DateTime.UtcNow
+            };
+
+            await _context.Tenants.AddAsync(tenant);
+
+            var entreprise = new Entreprise
+            {
+                Id = Guid.NewGuid(),
+                Nom = dto.CompanyName ?? "Entreprise",
+                Description = dto.Description ?? "Description non fournie",
+                RNE = dto.RNE ?? "Non précisé",
+                Secteur = dto.Secteur ?? "",
+                LogoUrl = dto.LogoUrl ?? "",
+                TenantId = tenant.Id,
+                CreeLe = DateTime.UtcNow
+            };
+
+            await _context.Entreprises.AddAsync(entreprise);
+
+            await _context.SaveChangesAsync();
+
+            return "Registration request successfully submitted. Awaiting admin approval.";
+        }
+
+        // ============================
+        // LOGIN
+        // ============================
+        public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.MotDePasse))
+                throw new Exception("Email and password required.");
+
+            var user = await _context.Utilisateurs
+                .FirstOrDefaultAsync(u => u.Email == dto.Email);
+
+            if (user == null ||
+                !VerifyPassword(dto.MotDePasse, user.MotDePasseHash))
+                throw new Exception("Incorrect email or password.");
+
+            if (user.Role == RoleUtilisateur.Tenant)
+            {
+                var tenant = await _context.Tenants
+                    .FirstOrDefaultAsync(t => t.UtilisateurId == user.Id);
+
+                if (tenant == null || tenant.Statut != TenantStatus.Approved)
+                    throw new Exception("Your company request has not been approved yet.");
+            }
+
+            return GenerateAuthResponse(user);
+        }
+
+        // ============================
+        // ADMIN METHODS
+        // ============================
         public async Task<List<Tenant>> GetPendingTenantsAsync()
         {
             return await _context.Tenants
@@ -84,41 +192,34 @@ namespace Recrutement_api.Services
                 .ToListAsync();
         }
 
-        // =============================================
-        // ADMIN : Approuver tenant
-        // =============================================
         public async Task ApproveTenantAsync(Guid tenantId)
         {
             var tenant = await _context.Tenants.FindAsync(tenantId);
             if (tenant == null)
-                throw new InvalidOperationException("Tenant non trouvé.");
+                throw new Exception("Tenant not found.");
 
             tenant.Statut = TenantStatus.Approved;
             await _context.SaveChangesAsync();
         }
 
-        // =============================================
-        // ADMIN : Rejeter tenant
-        // =============================================
         public async Task RejectTenantAsync(Guid tenantId)
         {
             var tenant = await _context.Tenants.FindAsync(tenantId);
             if (tenant == null)
-                throw new InvalidOperationException("Tenant non trouvé.");
+                throw new Exception("Tenant not found.");
 
             tenant.Statut = TenantStatus.Rejected;
             await _context.SaveChangesAsync();
         }
 
-        // =============================================
-        // GENERER AUTH RESPONSE
-        // =============================================
-        public AuthResponseDto GenerateAuthResponse(Utilisateur user)
+        // ============================
+        // AUTH RESPONSE
+        // ============================
+        private AuthResponseDto GenerateAuthResponse(Utilisateur user)
         {
-            // Ici tu peux ajouter le JWT comme avant
             return new AuthResponseDto
             {
-                Token = "FAKE_JWT_POUR_EXEMPLE",
+                Token = "FAKE_JWT_FOR_NOW",
                 Email = user.Email,
                 Role = user.Role
             };

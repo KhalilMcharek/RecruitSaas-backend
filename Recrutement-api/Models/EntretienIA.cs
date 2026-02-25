@@ -1,21 +1,28 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Recrutement_api.Models
 {
     public class EntretienIA
     {
-        [Key] // obligatoire pour EF Core
+        [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
+        [Required]
         public Guid CandidatureId { get; set; }
-        public Candidature? Candidature { get; set; }
 
-        public DateTime DateScheduled { get; set; }
-        public string? Transcript { get; set; }
-        public float? Score { get; set; }
-        public string? Statut { get; set; }
+        [ForeignKey("CandidatureId")]
+        public Candidature Candidature { get; set; }
 
-        public DateTime CreeLe { get; set; } = DateTime.UtcNow;
+        public DateTime DateEntretien { get; set; } = DateTime.UtcNow;
+
+        public string? QuestionsPosees { get; set; }
+
+        public string? ReponsesCandidat { get; set; }
+
+        public double? ScoreIA { get; set; }
+
+        public string? Evaluation { get; set; }
     }
 }

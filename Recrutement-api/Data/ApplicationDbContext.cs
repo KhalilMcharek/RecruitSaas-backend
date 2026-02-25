@@ -35,18 +35,20 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
         v => v.ToString(), // C# enum -> string pour la DB
         v => (RoleUtilisateur)Enum.Parse(typeof(RoleUtilisateur), v) // string DB -> C# enum
     );
+    // Convertit l'enum TenantStatus en texte dans la DB
+    var tenantStatusConverter = new ValueConverter<TenantStatus, string>(
+        v => v.ToString(), // C# enum -> string pour la DB
+        v => (TenantStatus)Enum.Parse(typeof(TenantStatus), v) // string DB -> C# enum
+    );
 
+    
     modelBuilder.Entity<Utilisateur>()
         .Property(u => u.Role)
         .HasConversion(roleConverter)   // conversion enum <-> texte
         .HasMaxLength(20)               // limite taille du texte dans la DB
         .IsRequired();
 
-    // Convertit l'enum TenantStatus en texte dans la DB
-    var tenantStatusConverter = new ValueConverter<TenantStatus, string>(
-        v => v.ToString(), // C# enum -> string pour la DB
-        v => (TenantStatus)Enum.Parse(typeof(TenantStatus), v) // string DB -> C# enum
-    );
+
 
     modelBuilder.Entity<Tenant>()
         .Property(t => t.Statut)
