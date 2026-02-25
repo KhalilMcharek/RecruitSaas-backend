@@ -1,3 +1,5 @@
+using Recrutement_api.Data;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Recrutement_api.Middleware;
@@ -8,7 +10,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // --------------------------
-// Créer le dossier logs si absent
+// CrÃ©er le dossier logs si absent
 // --------------------------
 Directory.CreateDirectory("logs");
 
@@ -46,16 +48,20 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    )
+);
 
 // --------------------------
-// CONFIGURATION JWT (sécurisée)
+// CONFIGURATION JWT (sÃ©curisÃ©e)
 // --------------------------
 var jwtSecret = builder.Configuration["Jwt:Secret"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
 
-// Sécurité : empêcher le démarrage si la clé est absente
+// SÃ©curitÃ© : empÃªcher le dÃ©marrage si la clÃ© est absente
 if (string.IsNullOrEmpty(jwtSecret))
 {
     throw new Exception("JWT Secret is not configured in appsettings.json");
