@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
+using Recrutement_api.Services; // ← AJOUT : Importer le namespace des services
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Configuration de la base de données PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// 🔴 AJOUT : Enregistrement du service TenantService
+builder.Services.AddScoped<TenantService>();
+builder.Services.AddScoped<AdminService>();
 
 // 🔴 AJOUT : Configuration CORS pour permettre au frontend d'accéder à l'API
 builder.Services.AddCors(options =>
