@@ -214,39 +214,6 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Entreprises");
                 });
 
-            modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidatureId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreeLe")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateScheduled")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<float?>("Score")
-                        .HasColumnType("real");
-
-                    b.Property<string>("Statut")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Transcript")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CandidatureId");
-
-                    b.ToTable("EntretiensIA");
-                });
-
             modelBuilder.Entity("Recrutement_api.Models.Expert", b =>
                 {
                     b.Property<Guid>("Id")
@@ -343,6 +310,10 @@ namespace Recrutement_api.Migrations
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Statut")
                         .IsRequired()
                         .HasColumnType("text");
@@ -355,6 +326,48 @@ namespace Recrutement_api.Migrations
                     b.HasIndex("UtilisateurId");
 
                     b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.TenantRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Industry")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Password")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RNE")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("WorkEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TenantRequests");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Utilisateur", b =>
@@ -487,17 +500,6 @@ namespace Recrutement_api.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
-                {
-                    b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
-                        .WithMany("Entretiens")
-                        .HasForeignKey("CandidatureId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Candidature");
-                });
-
             modelBuilder.Entity("Recrutement_api.Models.Expert", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Entreprise", "Entreprise")
@@ -561,8 +563,6 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Avis");
-
-                    b.Navigation("Entretiens");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>

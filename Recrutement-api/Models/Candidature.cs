@@ -18,7 +18,7 @@ namespace Recrutement_api.Models
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
         public AnalyseCV AnalyseCV { get; set; }
-        public ICollection<EntretienIA> Entretiens { get; set; }
+       // public ICollection<EntretienIA> Entretiens { get; set; }
         public ICollection<AvisExpert> Avis { get; set; }
     }
 }
