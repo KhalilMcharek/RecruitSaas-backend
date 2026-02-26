@@ -1,36 +1,16 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
 namespace Recrutement_api.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class migrate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateTable(
-                name: "company_registration_requests",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    CompanyName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    RNE = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    WorkEmail = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
-                    PasswordHash = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Industry = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    Status = table.Column<int>(type: "integer", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_company_registration_requests", x => x.Id);
-                });
-
             migrationBuilder.CreateTable(
                 name: "Utilisateurs",
                 columns: table => new
@@ -297,10 +277,10 @@ namespace Recrutement_api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     CandidatureId = table.Column<Guid>(type: "uuid", nullable: false),
-                    DateScheduled = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Transcript = table.Column<string>(type: "text", nullable: true),
+                    DateScheduled = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Transcript = table.Column<string>(type: "text", nullable: false),
                     Score = table.Column<float>(type: "real", nullable: true),
-                    Statut = table.Column<string>(type: "text", nullable: true),
+                    Statut = table.Column<string>(type: "text", nullable: false),
                     CreeLe = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -343,7 +323,8 @@ namespace Recrutement_api.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Candidats_UtilisateurId",
                 table: "Candidats",
-                column: "UtilisateurId");
+                column: "UtilisateurId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Candidatures_CandidatId",
@@ -389,7 +370,8 @@ namespace Recrutement_api.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Tenants_UtilisateurId",
                 table: "Tenants",
-                column: "UtilisateurId");
+                column: "UtilisateurId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Utilisateurs_Email",
@@ -409,9 +391,6 @@ namespace Recrutement_api.Migrations
 
             migrationBuilder.DropTable(
                 name: "AvisExperts");
-
-            migrationBuilder.DropTable(
-                name: "company_registration_requests");
 
             migrationBuilder.DropTable(
                 name: "EntretiensIA");

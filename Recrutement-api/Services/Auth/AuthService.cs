@@ -98,61 +98,61 @@ namespace Recrutement_api.Services
         // REGISTER COMPANY (TENANT)
         // ============================
         public async Task<string> RegisterCompanyAsync(CompanyRegisterDto dto)
-        {
-            if (string.IsNullOrWhiteSpace(dto.WorkEmail) ||
-                string.IsNullOrWhiteSpace(dto.Password) ||
-                string.IsNullOrWhiteSpace(dto.tenantName))
-                throw new Exception("Required fields are missing.");
+{
+    if (string.IsNullOrWhiteSpace(dto.WorkEmail) ||
+        string.IsNullOrWhiteSpace(dto.Password) ||
+        string.IsNullOrWhiteSpace(dto.tenantName))
+        throw new Exception("Required fields are missing.");
 
-            var emailExists = await _context.Utilisateurs
-                .AnyAsync(u => u.Email == dto.WorkEmail);
+    var emailExists = await _context.Utilisateurs
+        .AnyAsync(u => u.Email == dto.WorkEmail);
 
-            if (emailExists)
-                throw new Exception("A user with this email already exists.");
+    if (emailExists)
+        throw new Exception("A user with this email already exists.");
 
-            var ceo = new Utilisateur
-            {
-                Id = Guid.NewGuid(),
-                Email = dto.WorkEmail,
-                Nom = dto.tenantName,
-                Prenom = dto.Prenom ?? "",
-                Role = RoleUtilisateur.Tenant,
-                MotDePasseHash = HashPassword(dto.Password),
-                CreeLe = DateTime.UtcNow
-            };
+    // 1️⃣ Création du CEO
+    var ceo = new Utilisateur
+    {
+        Id = Guid.NewGuid(),
+        Email = dto.WorkEmail,
+        Nom = dto.tenantName,
+        Prenom = dto.Prenom ?? "",
+        Role = RoleUtilisateur.Tenant,
+        MotDePasseHash = HashPassword(dto.Password),
+        CreeLe = DateTime.UtcNow
+    };
+    await _context.Utilisateurs.AddAsync(ceo);
+    await _context.SaveChangesAsync(); // ✅ Sauvegarde le CEO d'abord
 
-            await _context.Utilisateurs.AddAsync(ceo);
+    // 2️⃣ Insertion du Tenant via SQL brut pour inclure Nom dès l'INSERT
+    var tenantId = Guid.NewGuid();
+    await _context.Database.ExecuteSqlRawAsync(
+        @"INSERT INTO ""Tenants"" (""Id"", ""CreeLe"", ""Nom"", ""Statut"", ""UtilisateurId"")
+          VALUES ({0}, {1}, {2}, {3}, {4})",
+        tenantId,
+        DateTime.UtcNow,
+        ceo.Nom,           // ✅ Nom = même valeur que l'utilisateur
+        (int)TenantStatus.Pending,
+        ceo.Id
+    );
 
-            var tenant = new Tenant
-            {
-                Id = Guid.NewGuid(),
-                Nom = dto.tenantName,
-                UtilisateurId = ceo.Id,
-                Statut = TenantStatus.Pending,
-                CreeLe = DateTime.UtcNow
-            };
+    // 3️⃣ Création de l'entreprise
+    var entreprise = new Entreprise
+    {
+        Id = Guid.NewGuid(),
+        Nom = dto.CompanyName ?? "Entreprise",
+        Description = dto.Description ?? "Description non fournie",
+        RNE = dto.RNE ?? "Non précisé",
+        Secteur = dto.Secteur ?? "",
+        LogoUrl = dto.LogoUrl ?? "",
+        TenantId = tenantId,
+        CreeLe = DateTime.UtcNow
+    };
+    await _context.Entreprises.AddAsync(entreprise);
+    await _context.SaveChangesAsync(); // ✅ Sauvegarde l'entreprise
 
-            await _context.Tenants.AddAsync(tenant);
-
-            var entreprise = new Entreprise
-            {
-                Id = Guid.NewGuid(),
-                Nom = dto.CompanyName ?? "Entreprise",
-                Description = dto.Description ?? "Description non fournie",
-                RNE = dto.RNE ?? "Non précisé",
-                Secteur = dto.Secteur ?? "",
-                LogoUrl = dto.LogoUrl ?? "",
-                TenantId = tenant.Id,
-                CreeLe = DateTime.UtcNow
-            };
-
-            await _context.Entreprises.AddAsync(entreprise);
-
-            await _context.SaveChangesAsync();
-
-            return "Registration request successfully submitted. Awaiting admin approval.";
-        }
-
+    return "Registration request successfully submitted. Awaiting admin approval.";
+}
         // ============================
         // LOGIN
         // ============================

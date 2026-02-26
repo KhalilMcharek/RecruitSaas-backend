@@ -138,7 +138,8 @@ namespace Recrutement_api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UtilisateurId");
+                    b.HasIndex("UtilisateurId")
+                        .IsUnique();
 
                     b.ToTable("Candidats");
                 });
@@ -173,49 +174,6 @@ namespace Recrutement_api.Migrations
                     b.HasIndex("OffreId");
 
                     b.ToTable("Candidatures");
-                });
-
-            modelBuilder.Entity("Recrutement_api.Models.CompanyRegistrationRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Industry")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("RNE")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("WorkEmail")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("company_registration_requests");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>
@@ -269,16 +227,18 @@ namespace Recrutement_api.Migrations
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("DateScheduled")
+                    b.Property<DateTime?>("DateScheduled")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<float?>("Score")
                         .HasColumnType("real");
 
                     b.Property<string>("Statut")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Transcript")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -397,7 +357,8 @@ namespace Recrutement_api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UtilisateurId");
+                    b.HasIndex("UtilisateurId")
+                        .IsUnique();
 
                     b.ToTable("Tenants");
                 });
@@ -494,8 +455,8 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.Candidat", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Utilisateur", "Utilisateur")
-                        .WithMany()
-                        .HasForeignKey("UtilisateurId")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.Candidat", "UtilisateurId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -587,8 +548,8 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Utilisateur", "Utilisateur")
-                        .WithMany()
-                        .HasForeignKey("UtilisateurId")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.Tenant", "UtilisateurId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
