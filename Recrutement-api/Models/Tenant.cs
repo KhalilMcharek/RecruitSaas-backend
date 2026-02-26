@@ -10,7 +10,6 @@ namespace Recrutement_api.Models
 
         public Guid UtilisateurId { get; set; }
         public Utilisateur Utilisateur { get; set; }
-public string Nom { get; set; }
 
         public TenantStatus Statut { get; set; } = TenantStatus.Pending; // <-- ici
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
