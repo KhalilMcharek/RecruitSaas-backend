@@ -7,5 +7,7 @@ namespace Recrutement_api.Controllers
     [ApiController]
     public class CandidatController : ControllerBase
     {
+        
     }
 }
+

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Recrutement_api.Models;
 
 namespace Recrutement_api.DTOs
@@ -7,21 +8,21 @@ namespace Recrutement_api.DTOs
     // USER REGISTER DTO
     // ==========================
     public class RegisterDto
-{
-    [Required, EmailAddress]
-    public string Email { get; set; } = string.Empty;
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
 
-    [Required]
-    public string MotDePasse { get; set; } = string.Empty;
+        [Required]
+        public string MotDePasse { get; set; } = string.Empty;
 
- public string Prenom { get; set; } = string.Empty;
-    [Required]
-    public string Nom { get; set; } = string.Empty;
+        [Required]
+        public string Nom { get; set; } = string.Empty;
 
-    public string Description { get; set; } = string.Empty;
+        public string Prenom { get; set; } = string.Empty;
 
-    public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Candidat;
-}
+        public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Candidat;
+    }
     // ==========================
     // LOGIN DTO
     // ==========================

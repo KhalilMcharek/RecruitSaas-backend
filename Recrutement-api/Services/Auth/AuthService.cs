@@ -70,13 +70,12 @@ namespace Recrutement_api.Services
             {
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
-                Nom = dto.Nom ?? "Nom non précisé",
-                Prenom = dto.Prenom ?? "Prénom non précisé",
+                Nom = string.IsNullOrWhiteSpace(dto.Nom) ? "Nom non précisé" : dto.Nom,
+                Prenom = string.IsNullOrWhiteSpace(dto.Prenom) ? "Prénom non précisé" : dto.Prenom,
                 MotDePasseHash = HashPassword(dto.MotDePasse),
                 Role = RoleUtilisateur.Candidat,
                 CreeLe = DateTime.UtcNow
             };
-
             await _context.Utilisateurs.AddAsync(user);
             await _context.SaveChangesAsync();
 
@@ -133,6 +132,7 @@ namespace Recrutement_api.Services
         DateTime.UtcNow,
         ceo.Nom,           // ✅ Nom = même valeur que l'utilisateur
         (int)TenantStatus.Pending,
+
         ceo.Id
     );
 
