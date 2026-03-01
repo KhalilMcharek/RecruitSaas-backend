@@ -24,7 +24,7 @@ namespace Recrutement_api.Models
         [Required]
         public string MotDePasseHash { get; set; }
 
-        public string Prenom { get; set; }
+        public string? Prenom { get; set; }
         [Required]
         public string Nom { get; set; }
 
@@ -34,19 +34,6 @@ namespace Recrutement_api.Models
         public bool EstActif { get; set; } = true;
 
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
-
-        public Utilisateur() { }
-
-        public Utilisateur(string email, string motDePasseHash, RoleUtilisateur role, string prenom = null, string nom = null)
-        {
-            Id = Guid.NewGuid();
-            Email = email;
-            MotDePasseHash = motDePasseHash;
-            Role = role;
-            Prenom = prenom;
-            Nom = nom;
-            EstActif = true;
-            CreeLe = DateTime.UtcNow;
-        }
+       
     }
 }

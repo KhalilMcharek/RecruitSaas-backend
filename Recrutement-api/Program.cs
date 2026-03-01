@@ -1,11 +1,9 @@
 using Recrutement_api.Data;
+using Recrutement_api.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Recrutement_api.Middleware;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,46 +58,16 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
+builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 
 // --------------------------
-// CONFIGURATION JWT (sécurisée)
+// JWT & AUTHORIZATION
 // --------------------------
-var jwtSecret = builder.Configuration["Jwt:Secret"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
-// Sécurité : empêcher le démarrage si la clé est absente
-if (string.IsNullOrEmpty(jwtSecret))
-{
-    throw new Exception("JWT Secret is not configured in appsettings.json");
-}
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSecret)
-        )
-    };
-});
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // =============================
-// AUTHORIZATION & CORS
+// CORS
 // =============================
-
-builder.Services.AddAuthorization();
 
 // Déplacer AddCors **avant Build**
 builder.Services.AddCors(options =>

@@ -23,8 +23,8 @@ namespace Recrutement_api.Controllers
         {
             try
             {
-                var response = await _authService.RegisterCandidateAsync(dto);
-                return Ok(response);
+                var message = await _authService.RegisterCandidateAsync(dto);
+                return Ok(new { Message = message });
             }
             catch (Exception ex)
             {
@@ -35,7 +35,7 @@ namespace Recrutement_api.Controllers
         // =====================================================
         // REGISTER COMPANY (Tenant request)
         // =====================================================
-        [HttpPost("company/register-request")]
+        [HttpPost("company/register")]
         public async Task<IActionResult> RegisterCompany([FromBody] CompanyRegisterDto dto)
         {
             try

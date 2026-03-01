@@ -130,7 +130,6 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Telephone")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("UtilisateurId")
@@ -344,10 +343,6 @@ namespace Recrutement_api.Migrations
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Statut")
                         .IsRequired()
                         .HasColumnType("text");
@@ -388,7 +383,6 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Prenom")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Role")

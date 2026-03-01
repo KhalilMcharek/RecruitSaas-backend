@@ -5,26 +5,28 @@ using Recrutement_api.Models;
 namespace Recrutement_api.DTOs
 {
     // ==========================
-    // USER REGISTER DTO
+    // CANDIDATE REGISTER DTO
     // ==========================
     public class RegisterDto
     {
         [Required]
+        public string Nom { get; set; } = string.Empty;        // Full Name (interface)
+
+        [Required]
         [EmailAddress]
-        public string Email { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;      // Professional Email
 
         [Required]
-        public string MotDePasse { get; set; } = string.Empty;
+        [MinLength(8)]
+        public string MotDePasse { get; set; } = string.Empty;  // Password
 
         [Required]
-        public string Nom { get; set; } = string.Empty;
-
-        public string Prenom { get; set; } = string.Empty;
-
-        public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Candidat;
+        [Compare(nameof(MotDePasse), ErrorMessage = "Les mots de passe ne correspondent pas.")]
+        public string ConfirmMotDePasse { get; set; } = string.Empty; // Confirm Password
     }
+
     // ==========================
-    // LOGIN DTO
+    // LOGIN DTO (même pour tous les rôles)
     // ==========================
     public class LoginDto
     {
@@ -39,27 +41,27 @@ namespace Recrutement_api.DTOs
     // COMPANY REGISTER DTO
     // ==========================
     public class CompanyRegisterDto
-{
-    public string tenantName { get; set; } = string.Empty;
+    {
+        [Required]
+        public string TenantName { get; set; } = string.Empty;   // → Utilisateur.Nom (relation Tenant→User)
 
-    public string CompanyName { get; set; } = string.Empty;
+        [Required]
+        public string CompanyName { get; set; } = string.Empty;   // → Entreprise.Nom
 
-    public string RNE { get; set; } = string.Empty;
+        [Required]
+        public string RNE { get; set; } = string.Empty;           // → Entreprise.RNE
 
-    public string Secteur { get; set; } = string.Empty;
+        [Required]
+        [EmailAddress]
+        public string WorkEmail { get; set; } = string.Empty;     // → Utilisateur.Email
 
-    public string WorkEmail { get; set; } = string.Empty;
+        [Required]
+        [MinLength(8)]
+        public string Password { get; set; } = string.Empty;      // → Utilisateur.MotDePasseHash
 
-    public string Password { get; set; } = string.Empty;
-
-    public string Prenom { get; set; } = string.Empty;
-
-    public string Description { get; set; } = string.Empty;
-
-    public string LogoUrl { get; set; } = string.Empty;
-}
-
-
+        [Required]
+        public string Industry { get; set; } = string.Empty;      // → Entreprise.Secteur
+    }
 
     // ==========================
     // AUTH RESPONSE DTO (JWT)
@@ -67,7 +69,6 @@ namespace Recrutement_api.DTOs
     public class AuthResponseDto
     {
         public string Token { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public RoleUtilisateur Role { get; set; }
+        public string UserName { get; set; } = string.Empty;
     }
 }
