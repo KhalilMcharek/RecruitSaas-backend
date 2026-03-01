@@ -7,6 +7,7 @@ using Recrutement_api.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
+using Recrutement_api.DTOs;
 
 namespace Recrutement_api.Controllers
 {
@@ -153,21 +154,19 @@ namespace Recrutement_api.Controllers
             _context = context;
         }
 
-        // ============================================
-        // GET: api/offres
-        // Liste des offres publiées
-        // ============================================
         [HttpGet]
         public async Task<IActionResult> GetOffres()
         {
             var offres = await _context.OffresEmploi
+                .Include(o => o.Entreprise)                          // ← AJOUTER
                 .Where(o => o.EstPublie)
                 .Select(o => new OffreListDTO
                 {
                     Id = o.Id,
                     Titre = o.Titre,
                     Localisation = o.Localisation,
-                    CreeLe = o.CreeLe
+                    CreeLe = o.CreeLe,
+                    EntrepriseNom = o.Entreprise != null ? o.Entreprise.Nom : "—"  // ← AJOUTER
                 })
                 .OrderByDescending(o => o.CreeLe)
                 .ToListAsync();
@@ -175,14 +174,11 @@ namespace Recrutement_api.Controllers
             return Ok(offres);
         }
 
-        // ============================================
-        // GET: api/offres/{id}
-        // Détails d'une offre
-        // ============================================
         [HttpGet("{id}")]
         public async Task<IActionResult> GetOffreDetail(Guid id)
         {
             var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)                          // ← AJOUTER
                 .Where(o => o.Id == id && o.EstPublie)
                 .Select(o => new OffreDetailDTO
                 {
@@ -190,7 +186,8 @@ namespace Recrutement_api.Controllers
                     Titre = o.Titre,
                     Description = o.Description,
                     Localisation = o.Localisation,
-                    CreeLe = o.CreeLe
+                    CreeLe = o.CreeLe,
+                    EntrepriseNom = o.Entreprise != null ? o.Entreprise.Nom : "—"  // ← AJOUTER
                 })
                 .FirstOrDefaultAsync();
 
