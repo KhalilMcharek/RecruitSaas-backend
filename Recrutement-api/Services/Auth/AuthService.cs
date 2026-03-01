@@ -136,8 +136,8 @@ namespace Recrutement_api.Services
                 Nom = dto.CompanyName,
                 RNE = dto.RNE,
                 Secteur = dto.Industry,
-                Description = null,
-                LogoUrl = null,
+                Description = string.Empty,
+                LogoUrl = string.Empty,
                 TenantId = tenant.Id,
                 CreeLe = DateTime.UtcNow
             };
