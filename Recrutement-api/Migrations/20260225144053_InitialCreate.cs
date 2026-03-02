@@ -6,7 +6,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Recrutement_api.Migrations
 {
     /// <inheritdoc />
+<<<<<<<< HEAD:Recrutement-api/Migrations/20260225144053_InitialCreate.cs
     public partial class InitialCreate : Migration
+========
+    public partial class migrate : Migration
+>>>>>>>> main:Recrutement-api/Migrations/20260225230735_migrate.cs
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -36,7 +40,7 @@ namespace Recrutement_api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Email = table.Column<string>(type: "text", nullable: false),
-                    MotDePasse = table.Column<string>(type: "text", nullable: false),
+                    MotDePasseHash = table.Column<string>(type: "text", nullable: false),
                     Prenom = table.Column<string>(type: "text", nullable: false),
                     Nom = table.Column<string>(type: "text", nullable: false),
                     Role = table.Column<string>(type: "text", nullable: false),
@@ -74,6 +78,7 @@ namespace Recrutement_api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UtilisateurId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Nom = table.Column<string>(type: "text", nullable: false),
                     Statut = table.Column<string>(type: "text", nullable: false),
                     CreeLe = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -341,7 +346,8 @@ namespace Recrutement_api.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Candidats_UtilisateurId",
                 table: "Candidats",
-                column: "UtilisateurId");
+                column: "UtilisateurId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Candidatures_CandidatId",
@@ -387,7 +393,8 @@ namespace Recrutement_api.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Tenants_UtilisateurId",
                 table: "Tenants",
-                column: "UtilisateurId");
+                column: "UtilisateurId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Utilisateurs_Email",

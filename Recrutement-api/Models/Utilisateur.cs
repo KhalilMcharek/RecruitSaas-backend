@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Recrutement_api.Models
 {
@@ -9,19 +10,21 @@ namespace Recrutement_api.Models
         Expert,
         Candidat
     }
+
     public class Utilisateur
     {
         [Key]
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
         [EmailAddress]
         public string Email { get; set; }
 
+        // Hash du mot de passe
         [Required]
-        public string MotDePasse { get; set; }
+        public string MotDePasseHash { get; set; }
 
-        public string Prenom { get; set; }
+        public string? Prenom { get; set; }
         [Required]
         public string Nom { get; set; }
 
@@ -29,6 +32,8 @@ namespace Recrutement_api.Models
         public RoleUtilisateur Role { get; set; }
 
         public bool EstActif { get; set; } = true;
+
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
+       
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Recrutement_api.DTOs;
 
 namespace Recrutement_api.Models
 {
@@ -10,8 +11,7 @@ namespace Recrutement_api.Models
         public Guid UtilisateurId { get; set; }
         public Utilisateur Utilisateur { get; set; }
 
-
-        public string Statut { get; set; } // Actif, Suspendu, Inactif
+        public TenantStatus Statut { get; set; } = TenantStatus.Pending; // <-- ici
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
         public ICollection<Entreprise> Entreprises { get; set; }
