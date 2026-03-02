@@ -17,7 +17,6 @@ namespace Recrutement_api.Controllers
         }
 
         // ============================================================
-        // 1️⃣ LISTE DE TOUTES LES DEMANDES
         // GET: api/admin/tenant-requests
         // ============================================================
         [HttpGet("tenant-requests")]
@@ -35,7 +34,6 @@ namespace Recrutement_api.Controllers
         }
 
         // ============================================================
-        // 2️⃣ DÉTAIL D'UNE DEMANDE PAR NOM D'ENTREPRISE
         // GET: api/admin/tenant-requests/by-name/{companyName}
         // ============================================================
         [HttpGet("tenant-requests/by-name/{companyName}")]
@@ -44,7 +42,6 @@ namespace Recrutement_api.Controllers
             try
             {
                 var request = await _adminService.GetTenantRequestByNameAsync(companyName);
-
                 if (request == null)
                     return NotFound(new { success = false, message = $"Aucune entreprise trouvée pour '{companyName}'" });
 
@@ -57,7 +54,6 @@ namespace Recrutement_api.Controllers
         }
 
         // ============================================================
-        // 3️⃣ APPROUVER UNE DEMANDE
         // PATCH: api/admin/tenant-requests/by-name/{companyName}/approve
         // ============================================================
         [HttpPatch("tenant-requests/by-name/{companyName}/approve")]
@@ -66,9 +62,8 @@ namespace Recrutement_api.Controllers
             try
             {
                 var (success, message, data) = await _adminService.ApproveTenantRequestAsync(companyName);
-
                 if (!success)
-                    return NotFound(new { success = false, message });
+                    return BadRequest(new { success = false, message });
 
                 return Ok(new { success = true, message, data });
             }
@@ -79,7 +74,6 @@ namespace Recrutement_api.Controllers
         }
 
         // ============================================================
-        // 4️⃣ REJETER UNE DEMANDE
         // PATCH: api/admin/tenant-requests/by-name/{companyName}/reject
         // ============================================================
         [HttpPatch("tenant-requests/by-name/{companyName}/reject")]
@@ -88,9 +82,8 @@ namespace Recrutement_api.Controllers
             try
             {
                 var (success, message, data) = await _adminService.RejectTenantRequestAsync(companyName);
-
                 if (!success)
-                    return NotFound(new { success = false, message });
+                    return BadRequest(new { success = false, message });
 
                 return Ok(new { success = true, message, data });
             }
@@ -100,5 +93,21 @@ namespace Recrutement_api.Controllers
             }
         }
 
+        // ============================================================
+        // GET: api/admin/dashboard
+        // ============================================================
+        [HttpGet("dashboard")]
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            try
+            {
+                var stats = await _adminService.GetDashboardStatsAsync();
+                return Ok(new { success = true, data = stats });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
     }
+}

@@ -20,8 +20,6 @@ namespace Recrutement_api.Models
         public string Description { get; set; }
         public string LogoUrl { get; set; }
 
-        // Statut de la demande d'inscription : Pending / Approved / Rejected
-        public string Status { get; set; } = "Pending";
 
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 

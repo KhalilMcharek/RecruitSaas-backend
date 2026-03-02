@@ -6,14 +6,14 @@ namespace Recrutement_api.DTOs.Tenant
     public class CreateCompanyDto
     {
         [Required]
-        public string Nom { get; set; }
-        
+        public string Nom { get; set; } = string.Empty;
+
         [Required]
-        public string Secteur { get; set; }
-        
+        public string Secteur { get; set; } = string.Empty;
+
         [Required]
-        public string RNE { get; set; }
-        
-        public string Description { get; set; }
+        public string RNE { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
     }
 }

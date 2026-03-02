@@ -20,45 +20,53 @@ namespace Recrutement_api.Controllers
             _context = context;
         }
 
-        // Helper pour obtenir l'ID du tenant connecté
+        // ============================================
+        // Helper : retourne le premier tenant Actif
+        // Si aucun tenant Actif → retourne null
+        // ============================================
         private Guid? GetCurrentTenantId()
         {
-            var premierTenant = _context.Tenants.FirstOrDefault();
-            if (premierTenant != null)
+            var tenantActif = _context.Tenants
+                .Include(t => t.Utilisateur)
+                .FirstOrDefault(t => t.Statut == "Actif");
+
+            if (tenantActif != null)
             {
-                Console.WriteLine($"✅ Test: Utilisation du tenant {premierTenant.Nom} (ID: {premierTenant.Id})");
-                return premierTenant.Id;
+                Console.WriteLine($"✅ Tenant actif trouvé : {tenantActif.Utilisateur?.Nom} (ID: {tenantActif.Id})");
+                return tenantActif.Id;
             }
-            
-            Console.WriteLine("❌ Aucun tenant trouvé dans la base");
+
+            Console.WriteLine("❌ Aucun tenant actif trouvé dans la base");
             return null;
         }
 
         // ============================================
         // GET /api/tenant/companies
-        // Liste toutes les entreprises du tenant
         // ============================================
         [HttpGet("companies")]
         public async Task<IActionResult> GetCompanies()
         {
             var tenantId = GetCurrentTenantId();
             if (tenantId == null)
-                return Unauthorized(new { success = false, message = "Tenant non trouvé" });
+                return Ok(new { success = false, message = "Aucun tenant approuvé disponible", statut = (string?)null });
 
-            var companies = await _tenantService.GetCompaniesAsync(tenantId.Value);
-            return Ok(new { success = true, data = companies });
+            var (success, message, data, statut) = await _tenantService.GetCompaniesAsync(tenantId.Value);
+
+            if (!success)
+                return Ok(new { success = false, message, statut });
+
+            return Ok(new { success = true, data, statut });
         }
 
         // ============================================
         // GET /api/tenant/companies/{id}
-        // Détail d'une entreprise
         // ============================================
         [HttpGet("companies/{id}")]
         public async Task<IActionResult> GetCompany(Guid id)
         {
             var tenantId = GetCurrentTenantId();
             if (tenantId == null)
-                return Unauthorized(new { success = false, message = "Tenant non trouvé" });
+                return Ok(new { success = false, message = "Aucun tenant approuvé disponible" });
 
             var company = await _tenantService.GetCompanyByIdAsync(id, tenantId.Value);
             if (company == null)
@@ -69,45 +77,39 @@ namespace Recrutement_api.Controllers
 
         // ============================================
         // POST /api/tenant/companies
-        // Créer une nouvelle entreprise (avec logo optionnel)
         // ============================================
         [HttpPost("companies")]
         public async Task<IActionResult> CreateCompany([FromForm] CreateCompanyDto dto, IFormFile? logo = null)
         {
             var tenantId = GetCurrentTenantId();
             if (tenantId == null)
-                return Unauthorized(new { success = false, message = "Tenant non trouvé" });
+                return Ok(new { success = false, message = "Aucun tenant approuvé disponible" });
 
-            try
-            {
-                var company = await _tenantService.CreateCompanyAsync(tenantId.Value, dto, logo);
+            var (success, message, company) = await _tenantService.CreateCompanyAsync(tenantId.Value, dto, logo);
 
-                return Ok(new
-                {
-                    success = true,
-                    message = "Entreprise créée avec succès, en attente d'approbation",
-                    data = new { company.Id, company.Nom, company.LogoUrl, company.Status }
-                });
-            }
-            catch (Exception ex)
+            if (!success)
+                return BadRequest(new { success = false, message });
+
+            return Ok(new
             {
-                return StatusCode(500, new { success = false, message = ex.Message });
-            }
+                success = true,
+                message,
+                data = new { company!.Id, company.Nom, company.LogoUrl }
+            });
         }
 
         // ============================================
         // PUT /api/tenant/companies/{id}
-        // Modifier une entreprise (infos + logo optionnel)
         // ============================================
         [HttpPut("companies/{id}")]
         public async Task<IActionResult> UpdateCompany(Guid id, [FromForm] UpdateCompanyDto dto, IFormFile? logo = null)
         {
             var tenantId = GetCurrentTenantId();
             if (tenantId == null)
-                return Unauthorized(new { success = false, message = "Tenant non trouvé" });
+                return Ok(new { success = false, message = "Aucun tenant approuvé disponible" });
 
             var (success, message, data) = await _tenantService.UpdateCompanyAsync(id, tenantId.Value, dto, logo);
-            
+
             if (!success)
                 return NotFound(new { success = false, message });
 
@@ -116,14 +118,13 @@ namespace Recrutement_api.Controllers
 
         // ============================================
         // DELETE /api/tenant/companies/{id}
-        // Supprimer une entreprise
         // ============================================
         [HttpDelete("companies/{id}")]
         public async Task<IActionResult> DeleteCompany(Guid id)
         {
             var tenantId = GetCurrentTenantId();
             if (tenantId == null)
-                return Unauthorized(new { success = false, message = "Tenant non trouvé" });
+                return Ok(new { success = false, message = "Aucun tenant approuvé disponible" });
 
             var (success, message, data) = await _tenantService.DeleteCompanyAsync(id, tenantId.Value);
             if (!success)

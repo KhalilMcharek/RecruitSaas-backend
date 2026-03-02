@@ -17,19 +17,28 @@ namespace Recrutement_api.Services
             _context = context;
             _environment = environment;
             _logosPath = Path.Combine(_environment.WebRootPath ?? "wwwroot", "uploads", "logos");
-            
+
             if (!Directory.Exists(_logosPath))
                 Directory.CreateDirectory(_logosPath);
         }
 
         // ============================================
-        // MÉTHODES PUBLIQUES
-        // ============================================
-
         // Récupérer toutes les entreprises d'un tenant
-        public async Task<List<object>> GetCompaniesAsync(Guid tenantId)
+        // Vérifie que le tenant est Actif
+        // ============================================
+        public async Task<(bool success, string message, List<object>? data, string? statut)> GetCompaniesAsync(Guid tenantId)
         {
-            return await _context.Entreprises
+            var tenant = await _context.Tenants
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return (false, "Tenant introuvable", null, null);
+
+            // Seuls les tenants Actif peuvent accéder au dashboard
+            if (tenant.Statut != "Actif")
+                return (false, $"Ce tenant n'est pas actif (statut : {tenant.Statut})", null, tenant.Statut);
+
+            var companies = await _context.Entreprises
                 .Where(e => e.TenantId == tenantId)
                 .Select(e => new
                 {
@@ -39,15 +48,18 @@ namespace Recrutement_api.Services
                     e.RNE,
                     e.Description,
                     e.LogoUrl,
-                    e.Status,
                     e.CreeLe,
                     ExpertsCount = _context.Experts.Count(exp => exp.EntrepriseId == e.Id),
                     OffresCount = _context.OffresEmploi.Count(o => o.EntrepriseId == e.Id)
                 })
                 .ToListAsync<object>();
+
+            return (true, "OK", companies, tenant.Statut);
         }
 
+        // ============================================
         // Récupérer une entreprise par son ID
+        // ============================================
         public async Task<object?> GetCompanyByIdAsync(Guid id, Guid tenantId)
         {
             return await _context.Entreprises
@@ -60,7 +72,6 @@ namespace Recrutement_api.Services
                     e.RNE,
                     e.Description,
                     e.LogoUrl,
-                    e.Status,
                     e.CreeLe,
                     ExpertsCount = _context.Experts.Count(exp => exp.EntrepriseId == e.Id),
                     OffresCount = _context.OffresEmploi.Count(o => o.EntrepriseId == e.Id)
@@ -68,9 +79,26 @@ namespace Recrutement_api.Services
                 .FirstOrDefaultAsync();
         }
 
+        // ============================================
         // Créer une nouvelle entreprise
-        public async Task<Entreprise> CreateCompanyAsync(Guid tenantId, CreateCompanyDto dto, IFormFile? logo)
+        // ============================================
+        public async Task<(bool success, string message, Entreprise? data)> CreateCompanyAsync(Guid tenantId, CreateCompanyDto dto, IFormFile? logo)
         {
+            var tenant = await _context.Tenants
+                .Include(t => t.Entreprises)
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return (false, "Tenant introuvable", null);
+
+            var isFirstCompany = !tenant.Entreprises.Any();
+
+            if (!isFirstCompany && tenant.Statut != "Actif")
+                return (false, $"Votre compte doit être approuvé pour ajouter d'autres entreprises (statut actuel : {tenant.Statut})", null);
+
+            if (isFirstCompany && tenant.Statut != "Pending")
+                tenant.Statut = "Pending";
+
             var company = new Entreprise
             {
                 Id = Guid.NewGuid(),
@@ -79,61 +107,48 @@ namespace Recrutement_api.Services
                 Secteur = dto.Secteur,
                 RNE = dto.RNE,
                 Description = dto.Description,
-                Status = "Pending",
                 CreeLe = DateTime.UtcNow
             };
 
-            // Upload du logo si fourni
             if (logo != null && logo.Length > 0)
-            {
                 company.LogoUrl = await SauvegarderLogoAsync(company.Id, logo);
-            }
 
             _context.Entreprises.Add(company);
             await _context.SaveChangesAsync();
 
-            return company;
+            return (true, isFirstCompany
+                ? "Demande d'inscription soumise, en attente d'approbation par l'admin"
+                : "Entreprise créée avec succès", company);
         }
 
-        // Mettre à jour une entreprise (infos + logo optionnel)
+        // ============================================
+        // Mettre à jour une entreprise
+        // ============================================
         public async Task<(bool success, string message, object? data)> UpdateCompanyAsync(Guid id, Guid tenantId, UpdateCompanyDto dto, IFormFile? logo)
         {
             var company = await GetCompanyEntityAsync(id, tenantId);
             if (company == null)
                 return (false, "Entreprise non trouvée", null);
 
-            // Mise à jour des champs texte
-            if (!string.IsNullOrEmpty(dto.Nom))
-                company.Nom = dto.Nom;
+            if (!string.IsNullOrEmpty(dto.Nom)) company.Nom = dto.Nom;
+            if (!string.IsNullOrEmpty(dto.Secteur)) company.Secteur = dto.Secteur;
+            if (!string.IsNullOrEmpty(dto.RNE)) company.RNE = dto.RNE;
+            if (dto.Description != null) company.Description = dto.Description;
 
-            if (!string.IsNullOrEmpty(dto.Secteur))
-                company.Secteur = dto.Secteur;
-
-            if (!string.IsNullOrEmpty(dto.RNE))
-                company.RNE = dto.RNE;
-
-            if (dto.Description != null)
-                company.Description = dto.Description;
-
-            // Mise à jour du logo si fourni
             if (logo != null && logo.Length > 0)
             {
-                // Supprimer l'ancien logo
                 if (!string.IsNullOrEmpty(company.LogoUrl))
-                {
                     await SupprimerLogoAsync(company.LogoUrl);
-                }
 
-                // Upload nouveau logo
                 company.LogoUrl = await SauvegarderLogoAsync(id, logo);
             }
 
             await _context.SaveChangesAsync();
 
-            return (true, "Entreprise mise à jour avec succès", new 
-            { 
-                company.Id, 
-                company.Nom, 
+            return (true, "Entreprise mise à jour avec succès", new
+            {
+                company.Id,
+                company.Nom,
                 company.LogoUrl,
                 company.Secteur,
                 company.RNE,
@@ -141,27 +156,23 @@ namespace Recrutement_api.Services
             });
         }
 
+        // ============================================
         // Supprimer une entreprise
+        // ============================================
         public async Task<(bool success, string message, object? data)> DeleteCompanyAsync(Guid id, Guid tenantId)
         {
             var company = await GetCompanyEntityAsync(id, tenantId);
             if (company == null)
                 return (false, "Entreprise non trouvée", null);
 
-            // Vérifier s'il y a des données liées
             var hasExperts = await _context.Experts.AnyAsync(e => e.EntrepriseId == id);
             var hasOffres = await _context.OffresEmploi.AnyAsync(o => o.EntrepriseId == id);
 
             if (hasExperts || hasOffres)
-            {
                 return (false, "Impossible de supprimer : l'entreprise a des experts ou des offres d'emploi", null);
-            }
 
-            // Supprimer le logo si existant
             if (!string.IsNullOrEmpty(company.LogoUrl))
-            {
                 await SupprimerLogoAsync(company.LogoUrl);
-            }
 
             _context.Entreprises.Remove(company);
             await _context.SaveChangesAsync();
@@ -169,28 +180,27 @@ namespace Recrutement_api.Services
             return (true, "Entreprise supprimée avec succès", new { company.Id, company.Nom });
         }
 
-        // Vérifier si l'entreprise appartient au tenant
-        public async Task<bool> CompanyExistsAsync(Guid id, Guid tenantId)
-        {
-            return await _context.Entreprises
-                .AnyAsync(e => e.Id == id && e.TenantId == tenantId);
-        }
-
         // ============================================
         // MÉTHODES PRIVÉES
         // ============================================
-
-        // Récupérer l'entité complète pour modification
         private async Task<Entreprise?> GetCompanyEntityAsync(Guid id, Guid tenantId)
         {
             return await _context.Entreprises
                 .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId);
         }
 
-        // Sauvegarder un logo sur le disque
         private async Task<string> SauvegarderLogoAsync(Guid entrepriseId, IFormFile logo)
         {
-            var fileName = $"logo_{entrepriseId}_{DateTime.Now.Ticks}{Path.GetExtension(logo.FileName)}";
+            var extension = logo.ContentType switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/png" => ".png",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                _ => Path.GetExtension(logo.FileName)
+            };
+
+            var fileName = $"logo_{entrepriseId}_{DateTime.Now.Ticks}{extension}";
             var filePath = Path.Combine(_logosPath, fileName);
 
             using var stream = new FileStream(filePath, FileMode.Create);
@@ -199,15 +209,13 @@ namespace Recrutement_api.Services
             return $"/uploads/logos/{fileName}";
         }
 
-        // Supprimer un logo du disque
         private async Task SupprimerLogoAsync(string logoUrl)
         {
             var fileName = Path.GetFileName(logoUrl);
             var filePath = Path.Combine(_logosPath, fileName);
             if (File.Exists(filePath))
-            {
                 File.Delete(filePath);
-            }
+
             await Task.CompletedTask;
         }
     }

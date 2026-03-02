@@ -1,26 +1,25 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Data;
-using Recrutement_api.Services; // ← AJOUT : Importer le namespace des services
+using Recrutement_api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
-// Configuration de la base de données PostgreSQL
+// Base de données PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 🔴 AJOUT : Enregistrement du service TenantService
+// Services
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
 
-// 🔴 AJOUT : Configuration CORS pour permettre au frontend d'accéder à l'API
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173") // URL du frontend Vite
+            policy.WithOrigins("http://localhost:5173")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -28,13 +27,11 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -42,12 +39,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// 🔴 AJOUT : Activer CORS (doit être avant UseAuthorization et MapControllers)
 app.UseCors("AllowFrontend");
 
+// Servir les fichiers statiques depuis wwwroot
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
+    RequestPath = ""
+});
+
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
