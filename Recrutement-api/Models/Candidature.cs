@@ -21,4 +21,6 @@ namespace Recrutement_api.Models
         public ICollection<EntretienIA> Entretiens { get; set; }
         public ICollection<AvisExpert> Avis { get; set; }
     }
+
+  
 }

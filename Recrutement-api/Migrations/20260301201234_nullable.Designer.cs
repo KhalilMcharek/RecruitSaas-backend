@@ -12,8 +12,8 @@ using Recrutement_api.Data;
 namespace Recrutement_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260223230613_initialMigration")]
-    partial class initialMigration
+    [Migration("20260301201234_nullable")]
+    partial class nullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -133,7 +133,6 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Telephone")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("UtilisateurId")
@@ -141,7 +140,8 @@ namespace Recrutement_api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UtilisateurId");
+                    b.HasIndex("UtilisateurId")
+                        .IsUnique();
 
                     b.ToTable("Candidats");
                 });
@@ -355,7 +355,8 @@ namespace Recrutement_api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UtilisateurId");
+                    b.HasIndex("UtilisateurId")
+                        .IsUnique();
 
                     b.ToTable("Tenants");
                 });
@@ -376,7 +377,7 @@ namespace Recrutement_api.Migrations
                     b.Property<bool>("EstActif")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("MotDePasse")
+                    b.Property<string>("MotDePasseHash")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -385,7 +386,6 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Prenom")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Role")
@@ -452,8 +452,8 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.Candidat", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Utilisateur", "Utilisateur")
-                        .WithMany()
-                        .HasForeignKey("UtilisateurId")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.Candidat", "UtilisateurId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -545,8 +545,8 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Utilisateur", "Utilisateur")
-                        .WithMany()
-                        .HasForeignKey("UtilisateurId")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.Tenant", "UtilisateurId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

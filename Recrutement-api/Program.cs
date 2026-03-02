@@ -1,11 +1,9 @@
 using Recrutement_api.Data;
+using Recrutement_api.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Recrutement_api.Middleware;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,55 +51,66 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
-
-// --------------------------
-// CONFIGURATION JWT (sécurisée)
-// --------------------------
-var jwtSecret = builder.Configuration["Jwt:Secret"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
-// Sécurité : empêcher le démarrage si la clé est absente
-if (string.IsNullOrEmpty(jwtSecret))
-{
-    throw new Exception("JWT Secret is not configured in appsettings.json");
-}
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSecret)
-        )
-    };
-});
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
-builder.Services.AddAuthorization();
+builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
+builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
+
+// --------------------------
+// JWT & AUTHORIZATION
+// --------------------------
+builder.Services.AddJwtAuthentication(builder.Configuration);
+
+// =============================
+// CORS
+// =============================
+
+// Déplacer AddCors **avant Build**
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173") // port Vite par exemple
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters
+            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
+// =============================
+// DATABASE
+// =============================
+
+
+
+// =============================
+// BUILD APP
+// =============================
 
 var app = builder.Build();
 
-// --------------------------
-// PIPELINE HTTP
-// --------------------------
+// =============================
+// MIDDLEWARE
+// =============================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 
 // Middleware tenant AVANT Authentication/Authorization
 app.UseMiddleware<TenantLoggingMiddleware>();

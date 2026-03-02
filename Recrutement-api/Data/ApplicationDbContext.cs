@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Recrutement_api.DTOs;
 using Recrutement_api.Models;
 
 namespace Recrutement_api.Data
@@ -9,10 +11,15 @@ namespace Recrutement_api.Data
             : base(options)
         {
         }
+
+        // ============================
         // Auth
+        // ============================
         public DbSet<Utilisateur> Utilisateurs { get; set; }
 
+        // ============================
         // Tenant
+        // ============================
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Entreprise> Entreprises { get; set; }
         public DbSet<Expert> Experts { get; set; }
@@ -31,12 +38,12 @@ namespace Recrutement_api.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // ============================
+            // INDEXES
+            // ============================
             modelBuilder.Entity<Utilisateur>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
-            modelBuilder.Entity<Utilisateur>()
-                 .Property(u => u.Role)
-                   .HasConversion<string>();
 
             modelBuilder.Entity<Candidature>()
                 .HasIndex(c => c.OffreId);
@@ -46,6 +53,46 @@ namespace Recrutement_api.Data
 
             modelBuilder.Entity<OffreEmploi>()
                 .HasIndex(o => o.EntrepriseId);
+
+            // ============================
+            // ENUM CONVERTERS (AJOUTS)
+            // ============================
+
+            var roleConverter = new EnumToStringConverter<RoleUtilisateur>();
+            var tenantStatusConverter = new EnumToStringConverter<TenantStatus>();
+
+            modelBuilder.Entity<Utilisateur>()
+                .Property(u => u.Role)
+                .HasConversion(roleConverter);
+
+            modelBuilder.Entity<Tenant>()
+                .Property(t => t.Statut)
+                .HasConversion(tenantStatusConverter);
+
+            // ============================
+            // RELATIONS IMPORTANTES (AJOUTS PROPRES)
+            // ============================
+
+            // Utilisateur - Candidat (1-1)
+            modelBuilder.Entity<Candidat>()
+                .HasOne(c => c.Utilisateur)
+                .WithOne()
+                .HasForeignKey<Candidat>(c => c.UtilisateurId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Utilisateur - Tenant (1-1)
+            modelBuilder.Entity<Tenant>()
+                .HasOne(t => t.Utilisateur)
+                .WithOne()
+                .HasForeignKey<Tenant>(t => t.UtilisateurId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Tenant - Entreprise (1-N)
+            modelBuilder.Entity<Entreprise>()
+                .HasOne(e => e.Tenant)
+                .WithMany(t => t.Entreprises)
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
