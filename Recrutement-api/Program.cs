@@ -5,6 +5,17 @@ using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Serilog;
 using Serilog.Events;
+<<<<<<< HEAD
+=======
+using Recrutement_api.Middleware;
+<<<<<<< HEAD
+=======
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Recrutement_api.DTOs;
+>>>>>>> 3a9a42a (upload cv cloudinary)
+>>>>>>> 09f3528 (upload cv cloudinary)
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,12 +63,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
+<<<<<<< HEAD
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
+=======
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("CloudinarySettings"));
+>>>>>>> 09f3528 (upload cv cloudinary)
 
 // --------------------------
 // CORS

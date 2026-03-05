@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Models;
@@ -11,60 +14,94 @@ namespace Recrutement_api.Controllers
     public class CandidatController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly Cloudinary _cloudinary;
+        private readonly ILogger<CandidatController> _logger;
 
-        public CandidatController(ApplicationDbContext context)
+        public CandidatController(
+            ApplicationDbContext context,
+            IOptions<CloudinarySettings> cloudinaryConfig,
+            ILogger<CandidatController> logger)
         {
             _context = context;
+            _logger = logger;
+
+            var account = new Account(
+                cloudinaryConfig.Value.CloudName,
+                cloudinaryConfig.Value.ApiKey,
+                cloudinaryConfig.Value.ApiSecret
+            );
+            _cloudinary = new Cloudinary(account);
         }
 
-        // ============================================
-        // GET: api/candidat/formulaire/{offreId}
-        // Récupérer le formulaire lié à l’offre
-        // ============================================
-        [HttpGet("formulaire/{offreId}")]
-        public async Task<IActionResult> GetFormulaire(Guid offreId)
+       [HttpPost("postuler")]
+public async Task<IActionResult> Postuler(
+    [FromForm] Guid offreId,
+    [FromForm] Guid candidatId,
+    [FromForm] IFormFile cv)
+{
+    try
+    {
+        if (cv == null || cv.Length == 0)
+            return BadRequest(new { message = "Le CV est obligatoire." });
+
+        var offre = await _context.OffresEmploi
+            .FirstOrDefaultAsync(o => o.Id == offreId && o.EstPublie);
+
+        if (offre == null)
+            return BadRequest(new { message = "Offre invalide ou non publiée." });
+
+        // ✅ Pas de vérification candidat — on fait confiance à l'ID passé
+        var dejaPostule = await _context.Candidatures
+            .AnyAsync(c => c.OffreId == offreId && c.CandidatId == candidatId);
+
+        if (dejaPostule)
+            return Conflict(new { message = "Vous avez déjà postulé à cette offre." });
+
+        // Upload Cloudinary
+        string cvUrl;
+        using (var stream = cv.OpenReadStream())
         {
-            var formulaire = await _context.FormulairesCandidature
-                .Where(f => f.OffreId == offreId)
-                .FirstOrDefaultAsync();
-
-            if (formulaire == null)
-                return NotFound();
-
-            return Ok(formulaire);
-        }
-
-        // ============================================
-        // POST: api/candidat/postuler
-        // Envoyer une candidature
-        // ============================================
-        [HttpPost("postuler")]
-        public async Task<IActionResult> Postuler([FromBody] PostulerDTO dto)
-        {
-            var offreExiste = await _context.OffresEmploi
-                .AnyAsync(o => o.Id == dto.OffreId && o.EstPublie);
-
-            if (!offreExiste)
-                return BadRequest("Offre invalide");
-
-            var candidature = new Candidature
+            var uploadParams = new RawUploadParams
             {
-                Id = Guid.NewGuid(),
-                OffreId = dto.OffreId,
-                CandidatId = dto.CandidatId,
-                CvUrl = dto.CvUrl,
-                Statut = "Nouvelle",
-                CreeLe = DateTime.UtcNow
+                File = new FileDescription(cv.FileName, stream),
+                Folder = "cvs",
+                PublicId = $"cvs/{candidatId}_{offreId}_{DateTime.UtcNow.Ticks}"
             };
 
-            _context.Candidatures.Add(candidature);
-            await _context.SaveChangesAsync();
+            var result = await _cloudinary.UploadAsync(uploadParams);
 
-            return Ok(new
-            {
-                Message = "Candidature envoyée avec succès",
-                candidature.Id
-            });
+            if (result.Error != null)
+                return StatusCode(500, new { message = "Erreur Cloudinary : " + result.Error.Message });
+
+            cvUrl = result.SecureUrl.ToString();
         }
+
+        var candidature = new Candidature
+        {
+            Id = Guid.NewGuid(),
+            OffreId = offreId,
+            CandidatId = candidatId,
+            CvUrl = cvUrl,
+            Statut = "Nouvelle",
+            CreeLe = DateTime.UtcNow
+        };
+
+        _context.Candidatures.Add(candidature);
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Candidature envoyée avec succès",
+            candidatureId = candidature.Id,
+            cvUrl
+        });
     }
-}
+    catch (Exception ex)
+    {
+        var inner = ex.InnerException?.InnerException?.Message
+                 ?? ex.InnerException?.Message
+                 ?? ex.Message;
+        _logger.LogError("❌ Erreur: {Error}", inner);
+        return StatusCode(500, new { message = inner });
+    }
+}}}
