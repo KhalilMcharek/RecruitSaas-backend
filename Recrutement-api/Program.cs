@@ -44,9 +44,9 @@ builder.Host.UseSerilog();
 // --------------------------
 // SERVICES
 // --------------------------
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")
@@ -58,31 +58,41 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
+
+// --------------------------
+// CORS
+// --------------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:8080",
+                "http://localhost:3000"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+// --------------------------
+// JWT & AUTHENTICATION — une seule fois via l'extension
+// --------------------------
+builder.Services.AddJwtAuthentication(builder.Configuration);
+
+// --------------------------
+// SERVICES MÉTIER
+// --------------------------
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
 // --------------------------
-// JWT & AUTHORIZATION
+// CONTROLLERS
 // --------------------------
-builder.Services.AddJwtAuthentication(builder.Configuration);
-
-// =============================
-// CORS
-// =============================
-
-// Déplacer AddCors **avant Build**
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend",
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:5173") // port Vite par exemple
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
@@ -91,21 +101,10 @@ builder.Services
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
-// =============================
-// DATABASE
-// =============================
-
-
-
-// =============================
+// --------------------------
 // BUILD APP
-// =============================
-
+// --------------------------
 var app = builder.Build();
-
-// =============================
-// MIDDLEWARE
-// =============================
 
 if (app.Environment.IsDevelopment())
 {
@@ -113,13 +112,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// CORS — avant tout le reste
 app.UseCors("AllowFrontend");
 
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health check endpoint (monitoring simple)
 app.MapGet("/health", () => Results.Ok(new
 {
     Status = "Healthy",

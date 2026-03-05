@@ -1,8 +1,12 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs.Offre;
 using Recrutement_api.Services.Interfaces;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 
 namespace Recrutement_api.Controllers
 {
@@ -140,5 +144,60 @@ namespace Recrutement_api.Controllers
             var entreprises = await _offreService.GetTenantEntreprisesAsync();
             return Ok(entreprises);
         }
+    public class OffresController : ControllerBase
+    {
+        private readonly ApplicationDbContext _context;
+
+        public OffresController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        // ============================================
+        // GET: api/offres
+        // Liste des offres publiées
+        // ============================================
+        [HttpGet]
+        public async Task<IActionResult> GetOffres()
+        {
+            var offres = await _context.OffresEmploi
+                .Where(o => o.EstPublie)
+                .Select(o => new OffreListDTO
+                {
+                    Id = o.Id,
+                    Titre = o.Titre,
+                    Localisation = o.Localisation,
+                    CreeLe = o.CreeLe
+                })
+                .OrderByDescending(o => o.CreeLe)
+                .ToListAsync();
+
+            return Ok(offres);
+        }
+
+        // ============================================
+        // GET: api/offres/{id}
+        // Détails d'une offre
+        // ============================================
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetOffreDetail(Guid id)
+        {
+            var offre = await _context.OffresEmploi
+                .Where(o => o.Id == id && o.EstPublie)
+                .Select(o => new OffreDetailDTO
+                {
+                    Id = o.Id,
+                    Titre = o.Titre,
+                    Description = o.Description,
+                    Localisation = o.Localisation,
+                    CreeLe = o.CreeLe
+                })
+                .FirstOrDefaultAsync();
+
+            if (offre == null)
+                return NotFound();
+
+            return Ok(offre);
+        }
     }
-}
+}}
