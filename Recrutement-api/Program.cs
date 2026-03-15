@@ -8,14 +8,15 @@ using Serilog.Events;
 <<<<<<< HEAD
 =======
 using Recrutement_api.Middleware;
-<<<<<<< HEAD
-=======
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Recrutement_api.DTOs;
+<<<<<<< HEAD
 >>>>>>> 3a9a42a (upload cv cloudinary)
 >>>>>>> 09f3528 (upload cv cloudinary)
+=======
+>>>>>>> 1404c92 (Landing page +  Auth + dashboard candidat)
 
 var builder = WebApplication.CreateBuilder(args);
 
