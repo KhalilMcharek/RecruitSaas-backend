@@ -7,7 +7,6 @@ using Recrutement_api.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
-using Recrutement_api.DTOs;
 
 namespace Recrutement_api.Controllers
 {
