@@ -1,6 +1,7 @@
 // Services/AdminService.cs
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.TenantRequest;
 
 namespace Recrutement_api.Services
@@ -15,7 +16,7 @@ namespace Recrutement_api.Services
         }
 
         // ============================================================
-        // LISTE DE TOUTES LES DEMANDES (tenants en Pending)
+        // LISTE DE TOUTES LES DEMANDES
         // ============================================================
         public async Task<List<TenantRequestListDto>> GetAllTenantRequestsAsync()
         {
@@ -29,7 +30,7 @@ namespace Recrutement_api.Services
                     RNE = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.RNE).FirstOrDefault(),
                     Owner = t.Utilisateur != null ? t.Utilisateur.Nom : null,
                     Industry = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.Secteur).FirstOrDefault(),
-                    Status = t.Statut
+                    Status = t.Statut.ToString()   // enum → string pour le DTO
                 })
                 .ToListAsync();
         }
@@ -59,13 +60,13 @@ namespace Recrutement_api.Services
                 Industry = entreprise.Secteur,
                 Description = entreprise.Description,
                 LogoUrl = entreprise.LogoUrl,
-                Status = entreprise.Tenant?.Statut,
+                Status = entreprise.Tenant?.Statut.ToString(),  // enum → string
                 CreatedAt = entreprise.CreeLe
             };
         }
 
         // ============================================================
-        // APPROUVER UNE DEMANDE → Tenant devient Actif
+        // APPROUVER → Tenant devient Approved
         // ============================================================
         public async Task<(bool success, string message, TenantStatusResponseDto? data)> ApproveTenantRequestAsync(string companyName)
         {
@@ -81,23 +82,21 @@ namespace Recrutement_api.Services
             if (entreprise.Tenant == null)
                 return (false, "Tenant associé introuvable", null);
 
-            if (entreprise.Tenant.Statut != "Pending")
+            if (entreprise.Tenant.Statut != TenantStatus.Pending)
                 return (false, $"Cette demande a déjà été traitée (statut : {entreprise.Tenant.Statut})", null);
 
-            entreprise.Tenant.Statut = "Actif";
+            entreprise.Tenant.Statut = TenantStatus.Approved;
             await _context.SaveChangesAsync();
 
-            var dto = new TenantStatusResponseDto
+            return (true, $"'{entreprise.Nom}' a été approuvée", new TenantStatusResponseDto
             {
                 CompanyName = entreprise.Nom,
-                Status = entreprise.Tenant.Statut
-            };
-
-            return (true, $"'{entreprise.Nom}' a été approuvée, le tenant est maintenant Actif", dto);
+                Status = entreprise.Tenant.Statut.ToString()
+            });
         }
 
         // ============================================================
-        // REJETER UNE DEMANDE → Tenant devient Inactif
+        // REJETER → Tenant devient Rejected
         // ============================================================
         public async Task<(bool success, string message, TenantStatusResponseDto? data)> RejectTenantRequestAsync(string companyName)
         {
@@ -113,23 +112,21 @@ namespace Recrutement_api.Services
             if (entreprise.Tenant == null)
                 return (false, "Tenant associé introuvable", null);
 
-            if (entreprise.Tenant.Statut != "Pending")
+            if (entreprise.Tenant.Statut != TenantStatus.Pending)
                 return (false, $"Cette demande a déjà été traitée (statut : {entreprise.Tenant.Statut})", null);
 
-            entreprise.Tenant.Statut = "Inactif";
+            entreprise.Tenant.Statut = TenantStatus.Rejected;
             await _context.SaveChangesAsync();
 
-            var dto = new TenantStatusResponseDto
+            return (true, $"'{entreprise.Nom}' a été rejetée", new TenantStatusResponseDto
             {
                 CompanyName = entreprise.Nom,
-                Status = entreprise.Tenant.Statut
-            };
-
-            return (true, $"'{entreprise.Nom}' a été rejetée, le tenant est Inactif", dto);
+                Status = entreprise.Tenant.Statut.ToString()
+            });
         }
 
         // ============================================================
-        // STATISTIQUES POUR LE DASHBOARD
+        // STATISTIQUES DASHBOARD
         // ============================================================
         public async Task<object> GetDashboardStatsAsync()
         {
@@ -138,9 +135,9 @@ namespace Recrutement_api.Services
             return new
             {
                 total = tenants.Count,
-                pending = tenants.Count(t => t.Statut == "Pending"),
-                approved = tenants.Count(t => t.Statut == "Actif"),
-                rejected = tenants.Count(t => t.Statut == "Inactif")
+                pending = tenants.Count(t => t.Statut == TenantStatus.Pending),
+                approved = tenants.Count(t => t.Statut == TenantStatus.Approved),
+                rejected = tenants.Count(t => t.Statut == TenantStatus.Rejected)
             };
         }
     }

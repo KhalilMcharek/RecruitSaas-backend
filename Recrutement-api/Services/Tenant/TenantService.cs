@@ -1,6 +1,7 @@
 // Services/TenantService.cs
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Tenant;
 using Recrutement_api.Models;
 
@@ -22,10 +23,9 @@ namespace Recrutement_api.Services
                 Directory.CreateDirectory(_logosPath);
         }
 
-        // ============================================
-        // Récupérer toutes les entreprises d'un tenant
-        // Vérifie que le tenant est Actif
-        // ============================================
+        // ============================================================
+        // RÉCUPÉRER LES ENTREPRISES — vérifie que le tenant est Approved
+        // ============================================================
         public async Task<(bool success, string message, List<object>? data, string? statut)> GetCompaniesAsync(Guid tenantId)
         {
             var tenant = await _context.Tenants
@@ -34,9 +34,8 @@ namespace Recrutement_api.Services
             if (tenant == null)
                 return (false, "Tenant introuvable", null, null);
 
-            // Seuls les tenants Actif peuvent accéder au dashboard
-            if (tenant.Statut != "Actif")
-                return (false, $"Ce tenant n'est pas actif (statut : {tenant.Statut})", null, tenant.Statut);
+            if (tenant.Statut != TenantStatus.Approved)
+                return (false, $"Compte non approuvé (statut : {tenant.Statut})", null, tenant.Statut.ToString());
 
             var companies = await _context.Entreprises
                 .Where(e => e.TenantId == tenantId)
@@ -54,12 +53,12 @@ namespace Recrutement_api.Services
                 })
                 .ToListAsync<object>();
 
-            return (true, "OK", companies, tenant.Statut);
+            return (true, "OK", companies, tenant.Statut.ToString());
         }
 
-        // ============================================
-        // Récupérer une entreprise par son ID
-        // ============================================
+        // ============================================================
+        // RÉCUPÉRER UNE ENTREPRISE PAR ID
+        // ============================================================
         public async Task<object?> GetCompanyByIdAsync(Guid id, Guid tenantId)
         {
             return await _context.Entreprises
@@ -79,9 +78,9 @@ namespace Recrutement_api.Services
                 .FirstOrDefaultAsync();
         }
 
-        // ============================================
-        // Créer une nouvelle entreprise
-        // ============================================
+        // ============================================================
+        // CRÉER UNE ENTREPRISE
+        // ============================================================
         public async Task<(bool success, string message, Entreprise? data)> CreateCompanyAsync(Guid tenantId, CreateCompanyDto dto, IFormFile? logo)
         {
             var tenant = await _context.Tenants
@@ -93,11 +92,13 @@ namespace Recrutement_api.Services
 
             var isFirstCompany = !tenant.Entreprises.Any();
 
-            if (!isFirstCompany && tenant.Statut != "Actif")
-                return (false, $"Votre compte doit être approuvé pour ajouter d'autres entreprises (statut actuel : {tenant.Statut})", null);
+            // Pas la première entreprise → doit être Approved
+            if (!isFirstCompany && tenant.Statut != TenantStatus.Approved)
+                return (false, $"Votre compte doit être approuvé (statut : {tenant.Statut})", null);
 
-            if (isFirstCompany && tenant.Statut != "Pending")
-                tenant.Statut = "Pending";
+            // Première entreprise → passe en Pending
+            if (isFirstCompany && tenant.Statut != TenantStatus.Pending)
+                tenant.Statut = TenantStatus.Pending;
 
             var company = new Entreprise
             {
@@ -117,13 +118,13 @@ namespace Recrutement_api.Services
             await _context.SaveChangesAsync();
 
             return (true, isFirstCompany
-                ? "Demande d'inscription soumise, en attente d'approbation par l'admin"
+                ? "Demande soumise, en attente d'approbation"
                 : "Entreprise créée avec succès", company);
         }
 
-        // ============================================
-        // Mettre à jour une entreprise
-        // ============================================
+        // ============================================================
+        // MODIFIER UNE ENTREPRISE
+        // ============================================================
         public async Task<(bool success, string message, object? data)> UpdateCompanyAsync(Guid id, Guid tenantId, UpdateCompanyDto dto, IFormFile? logo)
         {
             var company = await GetCompanyEntityAsync(id, tenantId);
@@ -139,7 +140,6 @@ namespace Recrutement_api.Services
             {
                 if (!string.IsNullOrEmpty(company.LogoUrl))
                     await SupprimerLogoAsync(company.LogoUrl);
-
                 company.LogoUrl = await SauvegarderLogoAsync(id, logo);
             }
 
@@ -156,9 +156,9 @@ namespace Recrutement_api.Services
             });
         }
 
-        // ============================================
-        // Supprimer une entreprise
-        // ============================================
+        // ============================================================
+        // SUPPRIMER UNE ENTREPRISE
+        // ============================================================
         public async Task<(bool success, string message, object? data)> DeleteCompanyAsync(Guid id, Guid tenantId)
         {
             var company = await GetCompanyEntityAsync(id, tenantId);
@@ -169,7 +169,7 @@ namespace Recrutement_api.Services
             var hasOffres = await _context.OffresEmploi.AnyAsync(o => o.EntrepriseId == id);
 
             if (hasExperts || hasOffres)
-                return (false, "Impossible de supprimer : l'entreprise a des experts ou des offres d'emploi", null);
+                return (false, "Impossible de supprimer : l'entreprise a des experts ou des offres", null);
 
             if (!string.IsNullOrEmpty(company.LogoUrl))
                 await SupprimerLogoAsync(company.LogoUrl);
@@ -180,9 +180,9 @@ namespace Recrutement_api.Services
             return (true, "Entreprise supprimée avec succès", new { company.Id, company.Nom });
         }
 
-        // ============================================
+        // ============================================================
         // MÉTHODES PRIVÉES
-        // ============================================
+        // ============================================================
         private async Task<Entreprise?> GetCompanyEntityAsync(Guid id, Guid tenantId)
         {
             return await _context.Entreprises
@@ -215,7 +215,6 @@ namespace Recrutement_api.Services
             var filePath = Path.Combine(_logosPath, fileName);
             if (File.Exists(filePath))
                 File.Delete(filePath);
-
             await Task.CompletedTask;
         }
     }
