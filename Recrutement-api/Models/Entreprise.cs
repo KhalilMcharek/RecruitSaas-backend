@@ -17,8 +17,8 @@ namespace Recrutement_api.Models
         [Required]
         public string RNE { get; set; }
 
-        public string Description { get; set; }
-        public string LogoUrl { get; set; }
+        public string? Description { get; set; }
+        public string? LogoUrl { get; set; }
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
         public ICollection<Expert> Experts { get; set; }

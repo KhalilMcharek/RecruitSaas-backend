@@ -69,7 +69,7 @@ namespace Recrutement_api.Services
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
                 Nom = dto.Nom,
-                Prenom = null,
+                Prenom = string.Empty,
                 MotDePasseHash = HashPassword(dto.MotDePasse),
                 Role = RoleUtilisateur.Candidat,
                 CreeLe = DateTime.UtcNow
@@ -81,7 +81,7 @@ namespace Recrutement_api.Services
             {
                 Id = Guid.NewGuid(),
                 UtilisateurId = user.Id,
-                Telephone = null,
+                Telephone = string.Empty,
                 CreeLe = DateTime.UtcNow
             };
 
@@ -112,7 +112,7 @@ namespace Recrutement_api.Services
                 Id = Guid.NewGuid(),
                 Email = dto.WorkEmail,
                 Nom = dto.TenantName,
-                Prenom = null,
+                Prenom = string.Empty,
                 Role = RoleUtilisateur.Tenant,
                 MotDePasseHash = HashPassword(dto.Password),
                 CreeLe = DateTime.UtcNow
@@ -163,18 +163,68 @@ namespace Recrutement_api.Services
                 !VerifyPassword(dto.MotDePasse, user.MotDePasseHash))
                 throw new Exception("Incorrect email or password.");
 
+            Guid? tenantId = null;
+            Guid? expertId = null;
+            Guid? candidatId = null;
+
+            // ================================
+            // Tenant validation
+            // ================================
             if (user.Role == RoleUtilisateur.Tenant)
             {
                 var tenant = await _context.Tenants
                     .FirstOrDefaultAsync(t => t.UtilisateurId == user.Id);
 
-                if (tenant == null || tenant.Statut != TenantStatus.Approved)
+                if (tenant == null)
+                    throw new Exception("Tenant account not found.");
+
+                if (tenant.Statut != TenantStatus.Approved)
                     throw new Exception("Your company account has not been approved yet.");
+
+                tenantId = tenant.Id;
             }
+
+            // ================================
+            // Expert mapping
+            // ================================
+            if (user.Role == RoleUtilisateur.Expert)
+            {
+                var expert = await _context.Experts
+                    .FirstOrDefaultAsync(e => e.UtilisateurId == user.Id);
+
+                if (expert == null)
+                    throw new Exception("Expert account not found.");
+
+                expertId = expert.Id;
+            }
+
+            // ================================
+            // Candidat mapping
+            // ================================
+            if (user.Role == RoleUtilisateur.Candidat)
+            {
+                var candidat = await _context.Candidats
+                    .FirstOrDefaultAsync(c => c.UtilisateurId == user.Id);
+
+                if (candidat == null)
+                    throw new Exception("Candidate account not found.");
+
+                candidatId = candidat.Id;
+            }
+
+            // ================================
+            // Generate JWT
+            // ================================
+            var token = _jwtService.GenerateToken(
+                user,
+                tenantId,
+                expertId,
+                candidatId
+            );
 
             return new AuthResponseDto
             {
-                Token = _jwtService.GenerateToken(user),
+                Token = token,
                 UserName = user.Nom
             };
         }

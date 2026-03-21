@@ -10,7 +10,6 @@ namespace Recrutement_api.Models
 
         public Guid OffreId { get; set; }
         public OffreEmploi Offre { get; set; }
-
-        public string ConfigJson { get; set; }
+        public ICollection<ChampPersonnalise> ChampsPersonnalises { get; set; } = new List<ChampPersonnalise>();
     }
 }

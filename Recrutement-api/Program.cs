@@ -1,9 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.Extensions;
-using Microsoft.EntityFrameworkCore;
+using Recrutement_api.Services.Implementations;
+using Recrutement_api.Services.Interfaces;
 using Serilog;
 using Serilog.Events;
-using Recrutement_api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,10 +57,12 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
-
+builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
-
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
 // --------------------------
 // JWT & AUTHORIZATION
 // --------------------------
@@ -112,8 +115,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowFrontend");
 
-// Middleware tenant AVANT Authentication/Authorization
-app.UseMiddleware<TenantLoggingMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -126,5 +127,15 @@ app.MapGet("/health", () => Results.Ok(new
 }));
 
 app.MapControllers();
+
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var urls = app.Urls;
+    foreach (var url in urls)
+    {
+        Console.WriteLine($"Application running on: {url}");
+    }
+});
 
 app.Run();
