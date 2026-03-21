@@ -1,7 +1,29 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 
 namespace Recrutement_api.Models
 {
+
+    public enum TypeContrat
+    {
+        [Description("Contrat à Durée Indéterminée")]
+        CDI,
+
+        [Description("Contrat à Durée Déterminée")]
+        CDD,
+
+        [Description("Freelance / Indépendant")]
+        Freelance,
+
+        [Description("Stage")]
+        Stage,
+
+        [Description("Alternance")]
+        Alternance,
+
+        [Description("Intérim")]
+        Interim
+    }
     public class OffreEmploi
     {
         [Key]
@@ -12,6 +34,7 @@ namespace Recrutement_api.Models
 
         [Required]
         public string Titre { get; set; }
+        public TypeContrat TypeContrat { get; set; }
 
         public string Description { get; set; }
         public string Localisation { get; set; }
@@ -21,6 +44,6 @@ namespace Recrutement_api.Models
 
         public FormulaireCandidature Formulaire { get; set; }
         public ICollection<Candidature> Candidatures { get; set; }
-        public ICollection<AssignationExpert> Assignations { get; set; }
+        public ICollection<AssignationExpert> Assignations { get; set; } = new List<AssignationExpert>();
     }
 }

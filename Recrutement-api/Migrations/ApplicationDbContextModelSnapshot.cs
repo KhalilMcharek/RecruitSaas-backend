@@ -84,7 +84,8 @@ namespace Recrutement_api.Migrations
 
                     b.HasIndex("ExpertId");
 
-                    b.HasIndex("OffreId");
+                    b.HasIndex("OffreId", "ExpertId")
+                        .IsUnique();
 
                     b.ToTable("AssignationsExperts");
                 });
@@ -175,6 +176,43 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Candidatures");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.ChampPersonnalise", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstObligatoire")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("FormulaireId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OptionsJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Ordre")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormulaireId");
+
+                    b.ToTable("ChampsPersonnalises");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>
                 {
                     b.Property<Guid>("Id")
@@ -185,11 +223,9 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("LogoUrl")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Nom")
@@ -281,10 +317,6 @@ namespace Recrutement_api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ConfigJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<Guid>("OffreId")
                         .HasColumnType("uuid");
 
@@ -324,6 +356,10 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Titre")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TypeContrat")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -476,6 +512,17 @@ namespace Recrutement_api.Migrations
                     b.Navigation("Offre");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.ChampPersonnalise", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.FormulaireCandidature", "Formulaire")
+                        .WithMany("ChampsPersonnalises")
+                        .HasForeignKey("FormulaireId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Formulaire");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Tenant", "Tenant")
@@ -577,6 +624,11 @@ namespace Recrutement_api.Migrations
                     b.Navigation("Assignations");
 
                     b.Navigation("Avis");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.FormulaireCandidature", b =>
+                {
+                    b.Navigation("ChampsPersonnalises");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.OffreEmploi", b =>
