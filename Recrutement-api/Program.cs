@@ -1,22 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Serilog;
 using Serilog.Events;
-<<<<<<< HEAD
-=======
-using Recrutement_api.Middleware;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Recrutement_api.DTOs;
-<<<<<<< HEAD
->>>>>>> 3a9a42a (upload cv cloudinary)
->>>>>>> 09f3528 (upload cv cloudinary)
-=======
->>>>>>> 1404c92 (Landing page +  Auth + dashboard candidat)
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,17 +53,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
-<<<<<<< HEAD
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
-=======
-builder.Services.Configure<CloudinarySettings>(
-    builder.Configuration.GetSection("CloudinarySettings"));
->>>>>>> 09f3528 (upload cv cloudinary)
 
 // --------------------------
 // CORS
@@ -107,6 +91,10 @@ builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+
+
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("CloudinarySettings"));
 // --------------------------
 // CONTROLLERS
 // --------------------------
