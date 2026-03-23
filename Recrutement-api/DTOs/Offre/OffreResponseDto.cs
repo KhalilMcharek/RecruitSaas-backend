@@ -1,4 +1,5 @@
-﻿using Recrutement_api.Models;
+using Recrutement_api.Models;
+using Recrutement_api.DTOs.Expert;
 
 namespace Recrutement_api.DTOs.Offre
 {
@@ -25,5 +26,7 @@ namespace Recrutement_api.DTOs.Offre
         public string NomEntreprise { get; set; }
 
         public FormulaireResponseDto? Formulaire { get; set; }
+
+        public List<ExpertDto> Experts { get; set; } = new List<ExpertDto>();
     }
 }
