@@ -1,111 +1,99 @@
 using Microsoft.EntityFrameworkCore;
+using Recrutement_api.Configuration;
 using Recrutement_api.Data;
 using Recrutement_api.Extensions;
+using Recrutement_api.Services.Expert;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
+using Recrutement_api.Services.Shared;
 using Serilog;
 using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --------------------------
-// Créer le dossier logs si absent
-// --------------------------
-Directory.CreateDirectory("logs");
+// Email config
+builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
+builder.Configuration["EmailSettings:SmtpPort"] = "587";
+builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
+builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
+builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-2c2413a0887ad3e8d10ffd3af9adf495a909a8b1c8c184a3994dca5b9da17194-t1UiJzUeUyMIGcW3";
+builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
+builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
+builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
-// --------------------------
-// CONFIGURATION SERILOG
-// --------------------------
+// Serilog
+Directory.CreateDirectory("logs");
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .Enrich.FromLogContext()
-    .WriteTo.Console(
-        outputTemplate:
-        "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
-    .WriteTo.File(
-        "logs/log-.txt",
-        rollingInterval: RollingInterval.Day,
-        outputTemplate:
-        "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
-    .WriteTo.File(
-        "logs/errors-.txt",
-        rollingInterval: RollingInterval.Day,
+    .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File("logs/errors-.txt", rollingInterval: RollingInterval.Day,
         restrictedToMinimumLevel: LogEventLevel.Error,
-        outputTemplate:
-        "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
-
 builder.Host.UseSerilog();
 
-// --------------------------
-// SERVICES
-// --------------------------
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Services
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    });
-builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
-builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
-builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
-// --------------------------
-// JWT & AUTHORIZATION
-// --------------------------
-builder.Services.AddJwtAuthentication(builder.Configuration);
-
-// =============================
-// CORS
-// =============================
-
-// Déplacer AddCors **avant Build**
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend",
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:5173") // port Vite par exemple
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-builder.Services
-    .AddControllers()
-    .AddJsonOptions(options =>
-    {
         options.JsonSerializerOptions.Converters
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
-
-// =============================
-// DATABASE
-// =============================
-
-
-
-// =============================
-// BUILD APP
-// =============================
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Entrez: Bearer {votre_token}"
+    });
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
+builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
+builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddScoped<ExpertService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddSingleton<EmailQueueService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
 
 var app = builder.Build();
-
-// =============================
-// MIDDLEWARE
-// =============================
 
 if (app.Environment.IsDevelopment())
 {
@@ -114,28 +102,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
-
-
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Health check endpoint (monitoring simple)
-app.MapGet("/health", () => Results.Ok(new
-{
-    Status = "Healthy",
-    Timestamp = DateTime.UtcNow
-}));
-
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
 app.MapControllers();
-
-
-app.Lifetime.ApplicationStarted.Register(() =>
-{
-    var urls = app.Urls;
-    foreach (var url in urls)
-    {
-        Console.WriteLine($"Application running on: {url}");
-    }
-});
-
 app.Run();

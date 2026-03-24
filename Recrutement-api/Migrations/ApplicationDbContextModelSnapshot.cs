@@ -247,7 +247,7 @@ namespace Recrutement_api.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("Entreprises");
+                    b.ToTable("Entreprise");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
@@ -289,24 +289,70 @@ namespace Recrutement_api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("EntrepriseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Poste")
+                    b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("UtilisateurId")
+                    b.Property<Guid?>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsInvited")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Poste")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TemporaryPassword")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UtilisateurId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("Email");
+
                     b.HasIndex("EntrepriseId");
 
+                    b.HasIndex("TenantId");
+
                     b.HasIndex("UtilisateurId");
+
+                    b.HasIndex("Email", "TenantId")
+                        .IsUnique();
 
                     b.ToTable("Experts");
                 });
@@ -547,19 +593,31 @@ namespace Recrutement_api.Migrations
 
             modelBuilder.Entity("Recrutement_api.Models.Expert", b =>
                 {
+                    b.HasOne("Recrutement_api.Models.Entreprise", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Recrutement_api.Models.Entreprise", "Entreprise")
                         .WithMany("Experts")
-                        .HasForeignKey("EntrepriseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("EntrepriseId");
+
+                    b.HasOne("Recrutement_api.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Recrutement_api.Models.Utilisateur", "Utilisateur")
                         .WithMany()
-                        .HasForeignKey("UtilisateurId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("UtilisateurId");
+
+                    b.Navigation("Company");
 
                     b.Navigation("Entreprise");
+
+                    b.Navigation("Tenant");
 
                     b.Navigation("Utilisateur");
                 });
