@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Recrutement_api.DTOs;
 using Recrutement_api.Models;
@@ -17,9 +17,7 @@ namespace Recrutement_api.Data
         // ============================
         public DbSet<Utilisateur> Utilisateurs { get; set; }
 
-        // ============================
-        // Tenant
-        // ============================
+     
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Entreprise> Entreprises { get; set; }
         public DbSet<Expert> Experts { get; set; }
@@ -29,7 +27,7 @@ namespace Recrutement_api.Data
         public DbSet<Candidature> Candidatures { get; set; }
         public DbSet<AssignationExpert> AssignationsExperts { get; set; }
         public DbSet<AvisExpert> AvisExperts { get; set; }
-
+        public DbSet<ChampPersonnalise> ChampsPersonnalises { get; set; }
         public DbSet<AnalyseCV> AnalysesCV { get; set; }
         public DbSet<EntretienIA> EntretiensIA { get; set; }
 
@@ -92,6 +90,31 @@ namespace Recrutement_api.Data
                 .WithMany(t => t.Entreprises)
                 .HasForeignKey(e => e.TenantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<OffreEmploi>()
+                .Property(e => e.TypeContrat)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<OffreEmploi>()
+       .HasOne(o => o.Formulaire)
+       .WithOne(f => f.Offre)
+       .HasForeignKey<FormulaireCandidature>(f => f.OffreId)
+       .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ChampPersonnalise>()
+                .Property(c => c.Type)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<ChampPersonnalise>()
+           .HasOne(c => c.Formulaire)
+           .WithMany(f => f.ChampsPersonnalises)
+           .HasForeignKey(c => c.FormulaireId)
+           .OnDelete(DeleteBehavior.Cascade);
+
+       
+            modelBuilder.Entity<AssignationExpert>()
+                  .HasIndex(a => new { a.OffreId, a.ExpertId })
+                    .IsUnique();
         }
     }
 }

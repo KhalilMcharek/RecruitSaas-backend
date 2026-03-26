@@ -1,8 +1,10 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Data;
-using Recrutement_api.Services;
 using Recrutement_api.Extensions;
+using Recrutement_api.Services;
+using Recrutement_api.Services.Implementations;
+using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Middleware;
 using Serilog;
 using Serilog.Events;
@@ -54,12 +56,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // =============================
 // SERVICES
 // =============================
-builder.Services.AddScoped<TenantService>();
-builder.Services.AddScoped<AdminService>();
 
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IJwtService, JwtService>();
-
+// Controllers + JSON
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -70,6 +68,19 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Tes services
+builder.Services.AddScoped<TenantService>();
+builder.Services.AddScoped<AdminService>();
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+
+builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IOffreService, OffreService>();
+
+builder.Services.AddHttpContextAccessor();
 
 // =============================
 // JWT AUTHENTICATION
@@ -109,7 +120,7 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
-// Tenant middleware AVANT auth
+// ⚠️ IMPORTANT : middleware tenant AVANT auth
 app.UseMiddleware<TenantLoggingMiddleware>();
 
 app.UseAuthentication();
@@ -135,5 +146,14 @@ app.MapGet("/health", () => Results.Ok(new
 }));
 
 app.MapControllers();
+
+// Log URLs
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    foreach (var url in app.Urls)
+    {
+        Console.WriteLine($"Application running on: {url}");
+    }
+});
 
 app.Run();
