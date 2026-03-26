@@ -3,6 +3,7 @@ using Recrutement_api.Data;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
+using Recrutement_api.Services.TenantService;
 using Serilog;
 using Serilog.Events;
 
@@ -63,6 +64,9 @@ builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+builder.Services.AddScoped<Recrutement_api.Services.TenantService.CandidatureService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+
 // --------------------------
 // JWT & AUTHORIZATION
 // --------------------------
