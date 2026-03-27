@@ -21,7 +21,6 @@ namespace Recrutement_api.Data
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Entreprise> Entreprises { get; set; }
         public DbSet<Expert> Experts { get; set; }
-
         public DbSet<Candidat> Candidats { get; set; }
         public DbSet<OffreEmploi> OffresEmploi { get; set; }
         public DbSet<FormulaireCandidature> FormulairesCandidature { get; set; }

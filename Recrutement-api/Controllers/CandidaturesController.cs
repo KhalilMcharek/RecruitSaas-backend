@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Recrutement_api.Services.TenantService;
+using Recrutement_api.Services.TenantServices;
+
 
 namespace Recrutement_api.Controllers
 {

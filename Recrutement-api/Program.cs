@@ -1,22 +1,26 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Data;
 using Recrutement_api.Extensions;
+using Recrutement_api.Services;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
-using Recrutement_api.Services.TenantService;
+
+
 using Serilog;
 using Serilog.Events;
+using Recrutement_api.Services.TenantServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --------------------------
-// Créer le dossier logs si absent
-// --------------------------
+// =============================
+// DOSSIER LOGS
+// =============================
 Directory.CreateDirectory("logs");
 
-// --------------------------
+// =============================
 // CONFIGURATION SERILOG
-// --------------------------
+// =============================
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
@@ -42,88 +46,106 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// --------------------------
-// SERVICES
-// --------------------------
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// =============================
+// DATABASE
+// =============================
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
+
+// =============================
+// SERVICES
+// =============================
+
+// Controllers + JSON
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Converters
+            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Tes services
+builder.Services.AddScoped<TenantService>();
+builder.Services.AddScoped<AdminService>();
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
-builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
-builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+builder.Services.AddScoped<IOffreService, OffreService>();
+
+builder.Services.AddHttpContextAccessor();
+
+// =============================
+
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
-builder.Services.AddScoped<Recrutement_api.Services.TenantService.CandidatureService>();
+builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 
-// --------------------------
-// JWT & AUTHORIZATION
-// --------------------------
+
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // =============================
 // CORS
 // =============================
-
-// Déplacer AddCors **avant Build**
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173") // port Vite par exemple
+            policy.WithOrigins("http://localhost:5173")
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         });
 });
-builder.Services
-    .AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters
-            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-    });
 
 // =============================
-// DATABASE
+// BUILD
 // =============================
-
-
-
-// =============================
-// BUILD APP
-// =============================
-
 var app = builder.Build();
 
 // =============================
 // MIDDLEWARE
 // =============================
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseHttpsRedirection();
+
 app.UseCors("AllowFrontend");
+
+// ⚠️ IMPORTANT : middleware tenant AVANT auth
 
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health check endpoint (monitoring simple)
+// =============================
+// STATIC FILES
+// =============================
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
+    RequestPath = ""
+});
+
+// =============================
+// HEALTH CHECK
+// =============================
 app.MapGet("/health", () => Results.Ok(new
 {
     Status = "Healthy",
@@ -132,11 +154,10 @@ app.MapGet("/health", () => Results.Ok(new
 
 app.MapControllers();
 
-
+// Log URLs
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var urls = app.Urls;
-    foreach (var url in urls)
+    foreach (var url in app.Urls)
     {
         Console.WriteLine($"Application running on: {url}");
     }
