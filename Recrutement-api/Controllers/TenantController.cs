@@ -1,4 +1,4 @@
-﻿// Controllers/TenantController.cs
+// Controllers/TenantController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs;
@@ -30,10 +30,6 @@ namespace Recrutement_api.Controllers
         // ============================================================
         private Guid? GetCurrentUserId()
         {
-            // Affiche tous les claims reçus pour déboguer
-            foreach (var claim in User.Claims)
-                Console.WriteLine($"🔍 Claim: {claim.Type} = {claim.Value}");
-
             // Essaie tous les formats possibles du claim "sub" dans .NET
             var sub = User.FindFirstValue("sub")
                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -41,11 +37,9 @@ namespace Recrutement_api.Controllers
 
             if (Guid.TryParse(sub, out var userId))
             {
-                Console.WriteLine($"✅ UserId lu depuis JWT : {userId}");
                 return userId;
             }
 
-            Console.WriteLine("❌ Impossible de lire l'UserId depuis le JWT");
             return null;
         }
 
@@ -64,11 +58,9 @@ namespace Recrutement_api.Controllers
 
             if (tenant != null)
             {
-                Console.WriteLine($"✅ Tenant approuvé : {tenant.Utilisateur?.Nom} (ID: {tenant.Id})");
                 return tenant.Id;
             }
 
-            Console.WriteLine("❌ Tenant non trouvé ou non approuvé");
             return null;
         }
 

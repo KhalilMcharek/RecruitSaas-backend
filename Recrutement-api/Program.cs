@@ -5,11 +5,14 @@ using Recrutement_api.Extensions;
 using Recrutement_api.Services;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
+<<<<<<< Updated upstream
 <<<<<<< HEAD
 using Recrutement_api.Middleware;
 =======
 using Recrutement_api.Services.TenantService;
 >>>>>>> main
+=======
+>>>>>>> Stashed changes
 using Serilog;
 using Serilog.Events;
 
@@ -135,7 +138,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 
 // ⚠️ IMPORTANT : middleware tenant AVANT auth
-app.UseMiddleware<TenantLoggingMiddleware>();
+
 
 app.UseAuthentication();
 app.UseAuthorization();
