@@ -40,7 +40,6 @@
 		<Folder Include="Services\Candidat\" />
 		<Folder Include="Services\AI\" />
 		<Folder Include="Services\Shared\" />
-		<Folder Include="Services\Tenant\" />
 	</ItemGroup>
 
   <ItemGroup>

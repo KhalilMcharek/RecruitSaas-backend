@@ -5,7 +5,11 @@ using Recrutement_api.Extensions;
 using Recrutement_api.Services;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
+<<<<<<< HEAD
 using Recrutement_api.Middleware;
+=======
+using Recrutement_api.Services.TenantService;
+>>>>>>> main
 using Serilog;
 using Serilog.Events;
 
@@ -78,6 +82,7 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+<<<<<<< HEAD
 builder.Services.AddScoped<IOffreService, OffreService>();
 
 builder.Services.AddHttpContextAccessor();
@@ -85,6 +90,15 @@ builder.Services.AddHttpContextAccessor();
 // =============================
 // JWT AUTHENTICATION
 // =============================
+=======
+builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+builder.Services.AddScoped<Recrutement_api.Services.TenantService.CandidatureService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+
+// --------------------------
+// JWT & AUTHORIZATION
+// --------------------------
+>>>>>>> main
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // =============================
