@@ -9,13 +9,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Compile Remove="NewFolder\**" />
-		<Content Remove="NewFolder\**" />
-		<EmbeddedResource Remove="NewFolder\**" />
-		<None Remove="NewFolder\**" />
-	</ItemGroup>
-
-	<ItemGroup>
+		<PackageReference Include="CloudinaryDotNet" Version="1.28.0" />
+		<PackageReference Include="MailKit" Version="4.15.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
 
@@ -34,6 +29,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Folder Include="wwwroot\" />
 		<Folder Include="Services\Auth\" />
 		<Folder Include="Services\Admin\" />
 		<Folder Include="Services\Expert\" />

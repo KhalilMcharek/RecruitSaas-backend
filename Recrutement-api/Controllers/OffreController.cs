@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs.Offre;
@@ -8,7 +8,7 @@ namespace Recrutement_api.Controllers
 {
     [Route("api/offres")]
     [ApiController]
-    [Authorize] 
+    [Authorize]
     public class OffreController : ControllerBase
     {
         private readonly IOffreService _offreService;
@@ -31,12 +31,12 @@ namespace Recrutement_api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-       /* [HttpPut("{offreId}/formulaire")]
-        public async Task<IActionResult> ConfigurerFormulaire(Guid offreId, [FromBody] FormulaireConfigDto dto)
-        {
-            var offre = await _offreService.ConfigurerFormulaireAsync(offreId, dto);
-            return Ok(offre);
-        }*/
+        /* [HttpPut("{offreId}/formulaire")]
+         public async Task<IActionResult> ConfigurerFormulaire(Guid offreId, [FromBody] FormulaireConfigDto dto)
+         {
+             var offre = await _offreService.ConfigurerFormulaireAsync(offreId, dto);
+             return Ok(offre);
+         }*/
         [HttpGet("{offreId}")]
         public async Task<IActionResult> GetOffre(Guid offreId)
         {
@@ -51,7 +51,7 @@ namespace Recrutement_api.Controllers
             }
         }
         [HttpGet]
-                 public async Task<IActionResult> GetOffres(
+        public async Task<IActionResult> GetOffres(
                  [FromQuery] Guid? entrepriseId,
                  [FromQuery] string? search,
                  [FromQuery] string? filter)

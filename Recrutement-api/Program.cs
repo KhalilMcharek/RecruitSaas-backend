@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services;
 using Recrutement_api.Services.Implementations;
@@ -46,9 +47,18 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
+<<<<<<< HEAD
+// --------------------------
+// SERVICES
+// --------------------------
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+=======
 // =============================
 // DATABASE
 // =============================
+>>>>>>> main
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")
@@ -79,6 +89,39 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
+<<<<<<< HEAD
+
+// --------------------------
+// CORS
+// --------------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:8080",
+                "http://localhost:3000"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+// --------------------------
+// JWT & AUTHENTICATION — une seule fois via l'extension
+// --------------------------
+builder.Services.AddJwtAuthentication(builder.Configuration);
+
+// --------------------------
+// SERVICES MÉTIER
+// --------------------------
+builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
+builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
+builder.Services.AddHttpContextAccessor();
+=======
+>>>>>>> main
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddScoped<IOffreService, OffreService>();
@@ -88,6 +131,28 @@ builder.Services.AddHttpContextAccessor();
 // =============================
 
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+<<<<<<< HEAD
+
+
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("CloudinarySettings"));
+// --------------------------
+// CONTROLLERS
+// --------------------------
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters
+            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
+// --------------------------
+// BUILD APP
+// --------------------------
+var app = builder.Build();
+
+=======
 builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 
@@ -117,14 +182,19 @@ var app = builder.Build();
 // =============================
 // MIDDLEWARE
 // =============================
+>>>>>>> main
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+<<<<<<< HEAD
+// CORS — avant tout le reste
+=======
 app.UseHttpsRedirection();
 
+>>>>>>> main
 app.UseCors("AllowFrontend");
 
 // ⚠️ IMPORTANT : middleware tenant AVANT auth
@@ -133,6 +203,8 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
+<<<<<<< HEAD
+=======
 // =============================
 // STATIC FILES
 // =============================
@@ -146,6 +218,7 @@ app.UseStaticFiles(new StaticFileOptions
 // =============================
 // HEALTH CHECK
 // =============================
+>>>>>>> main
 app.MapGet("/health", () => Results.Ok(new
 {
     Status = "Healthy",
