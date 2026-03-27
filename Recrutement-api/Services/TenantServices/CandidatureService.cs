@@ -3,7 +3,7 @@ using Recrutement_api.Data;
 using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Services.Interfaces;
 
-namespace Recrutement_api.Services.TenantService
+namespace Recrutement_api.Services.TenantServices
 {
     public class CandidatureService
     {

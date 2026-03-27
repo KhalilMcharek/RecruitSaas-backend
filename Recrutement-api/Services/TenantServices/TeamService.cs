@@ -4,7 +4,7 @@ using Recrutement_api.DTOs.Expert;
 using Recrutement_api.Models;
 using Recrutement_api.Services.Interfaces;
 
-namespace Recrutement_api.Services.TenantService
+namespace Recrutement_api.Services.TenantServices
 {
     public class TeamService : ITeamService
     {

@@ -5,7 +5,7 @@ using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Tenant;
 using Recrutement_api.Models;
 
-namespace Recrutement_api.Services
+namespace Recrutement_api.Services.TenantServices
 {
     public class TenantService
     {

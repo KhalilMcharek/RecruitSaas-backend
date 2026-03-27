@@ -1,20 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Data;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-using Recrutement_api.Middleware;
-=======
-using Recrutement_api.Services.TenantService;
->>>>>>> main
-=======
->>>>>>> Stashed changes
+
+
 using Serilog;
 using Serilog.Events;
+using Recrutement_api.Services.TenantServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -85,23 +80,18 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-<<<<<<< HEAD
+
 builder.Services.AddScoped<IOffreService, OffreService>();
 
 builder.Services.AddHttpContextAccessor();
 
 // =============================
-// JWT AUTHENTICATION
-// =============================
-=======
+
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
-builder.Services.AddScoped<Recrutement_api.Services.TenantService.CandidatureService>();
+builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 
-// --------------------------
-// JWT & AUTHORIZATION
-// --------------------------
->>>>>>> main
+
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // =============================

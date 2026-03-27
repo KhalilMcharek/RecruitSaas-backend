@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Tenant;
-using Recrutement_api.Services;
 using Recrutement_api.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using Recrutement_api.Services.TenantServices;
 
 namespace Recrutement_api.Controllers
 {
