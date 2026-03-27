@@ -131,39 +131,79 @@ public async Task<IActionResult> Postuler(
         if (dejaPostule)
             return Conflict(new { message = "Déjà postulé." });
 
-        // ─── 3. Upload Cloudinary (cvUrl déclaré AVANT le using) ───
+        // ─── 3. Upload CV sur Cloudinary ───
         string cvUrl;
         using (var stream = cv.OpenReadStream())
         {
             var uploadParams = new RawUploadParams
             {
-                File = new FileDescription(cv.FileName, stream),
+                File   = new FileDescription(cv.FileName, stream),
                 Folder = "cvs"
             };
-
             var result = await _cloudinary.UploadAsync(uploadParams);
-
             if (result.Error != null)
                 return StatusCode(500, new { message = result.Error.Message });
-
             cvUrl = result.SecureUrl.ToString();
         }
 
-        // ─── 4. Construire JSON des réponses ───
+        // ─── 4. Upload des fichiers custom sur Cloudinary ───
+        //       Le frontend envoie : customFile_0, customFile_0_question
+        //                            customFile_1, customFile_1_question, ...
+        var customFileUrls = new Dictionary<string, string>(); // question → url
+
+        int idx = 0;
+        while (true)
+        {
+            var fileKey     = $"customFile_{idx}";
+            var questionKey = $"customFile_{idx}_question";
+
+            var customFile     = Request.Form.Files.GetFile(fileKey);
+            var customQuestion = Request.Form.ContainsKey(questionKey)
+                                    ? Request.Form[questionKey].ToString()
+                                    : null;
+
+            if (customFile == null) break; // plus de fichiers
+
+            using (var stream = customFile.OpenReadStream())
+            {
+                var uploadParams = new RawUploadParams
+                {
+                    File   = new FileDescription(customFile.FileName, stream),
+                    Folder = "candidatures_fichiers"   // dossier dédié dans Cloudinary
+                };
+                var result = await _cloudinary.UploadAsync(uploadParams);
+
+                if (result.Error != null)
+                {
+                    _logger.LogWarning("Cloudinary custom file error: {msg}", result.Error.Message);
+                }
+                else
+                {
+                    var label = !string.IsNullOrEmpty(customQuestion)
+                                    ? customQuestion
+                                    : fileKey;
+                    customFileUrls[label] = result.SecureUrl.ToString();
+                }
+            }
+
+            idx++;
+        }
+
+        // ─── 5. Construire le JSON des réponses ───
         var responses = new Dictionary<string, object>();
 
-        if (!string.IsNullOrEmpty(fullName))       responses["fullName"]      = fullName;
-        if (!string.IsNullOrEmpty(email))          responses["email"]         = email;
-        if (!string.IsNullOrEmpty(portfolioUrl))   responses["portfolioUrl"]  = portfolioUrl;
-        if (!string.IsNullOrEmpty(motivation))     responses["motivation"]    = motivation;
+        if (!string.IsNullOrEmpty(fullName))     responses["fullName"]     = fullName;
+        if (!string.IsNullOrEmpty(email))        responses["email"]        = email;
+        if (!string.IsNullOrEmpty(portfolioUrl)) responses["portfolioUrl"] = portfolioUrl;
+        if (!string.IsNullOrEmpty(motivation))   responses["motivation"]   = motivation;
 
+        // Champs texte / nombre / textarea
         if (!string.IsNullOrWhiteSpace(champsPersonnalises))
         {
             try
             {
                 var extra = System.Text.Json.JsonSerializer
                     .Deserialize<Dictionary<string, object>>(champsPersonnalises);
-
                 if (extra != null)
                     foreach (var kv in extra)
                         responses[kv.Key] = kv.Value;
@@ -174,20 +214,24 @@ public async Task<IActionResult> Postuler(
             }
         }
 
+        // ✅ Ajouter les URLs des fichiers custom dans FormulaireResponses
+        foreach (var kv in customFileUrls)
+            responses[kv.Key] = kv.Value;
+
         var formulaireResponsesJson = responses.Count > 0
             ? System.Text.Json.JsonSerializer.Serialize(responses)
             : "{}";
 
-        // ─── 5. INSERT DB avec candidat.Id (FK valide) ───
+        // ─── 6. INSERT DB ───
         var candidature = new Candidature
         {
             Id                  = Guid.NewGuid(),
             OffreId             = offreId,
-            CandidatId          = candidat.Id,        // ✅ FK réelle
-            CvUrl               = cvUrl,              // ✅ dans scope
+            CandidatId          = candidat.Id,
+            CvUrl               = cvUrl,
             Statut              = "Nouvelle",
             CreeLe              = DateTime.UtcNow,
-            FormulaireResponses = formulaireResponsesJson  // ✅ dans scope
+            FormulaireResponses = formulaireResponsesJson
         };
 
         _context.Candidatures.Add(candidature);
