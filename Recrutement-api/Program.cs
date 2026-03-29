@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Recrutement_api.Configuration;
 using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
+using Recrutement_api.Services;
 using Recrutement_api.Services.Expert;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
+using Recrutement_api.Services.TenantServices;
 using Serilog;
 using Serilog.Events;
 
@@ -38,12 +42,13 @@ builder.Host.UseSerilog();
 
 // Services
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "http://localhost:8080", "http://localhost:3000")
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
@@ -87,6 +92,10 @@ builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+builder.Services.AddScoped<TenantService>();
+builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<CandidatureService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddScoped<ExpertService>();
 builder.Services.AddScoped<EmailService>();
@@ -101,9 +110,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
+    RequestPath = ""
+});
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
 app.MapControllers();
 app.Run();

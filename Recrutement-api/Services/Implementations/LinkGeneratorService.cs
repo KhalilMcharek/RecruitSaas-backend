@@ -14,7 +14,7 @@ namespace Recrutement_api.Services.Implementations
         public string GenerateOfferLink(Guid offerId)
         {
             var baseUrl = _configuration["AppSettings:BaseUrl"];
-            return $"{baseUrl}/offres/{offerId}";
+            return $"{baseUrl}/public/offres/{offerId}";
         }
     }
 }

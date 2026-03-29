@@ -160,6 +160,10 @@ namespace Recrutement_api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("FormulaireResponses")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid>("OffreId")
                         .HasColumnType("uuid");
 

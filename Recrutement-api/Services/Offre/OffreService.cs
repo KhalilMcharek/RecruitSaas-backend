@@ -164,6 +164,9 @@ namespace Recrutement_api.Services
                 .Include(o => o.Entreprise)
                 .Include(o => o.Formulaire)
                     .ThenInclude(f => f.ChampsPersonnalises)
+                .Include(o => o.Assignations)
+                    .ThenInclude(a => a.Expert)
+                        .ThenInclude(e => e.Utilisateur)
                 .FirstOrDefaultAsync(o => o.Id == offreId);
 
             if (offre == null)
@@ -198,7 +201,17 @@ namespace Recrutement_api.Services
                             OptionsJson = c.OptionsJson,
                             Ordre = c.Ordre
                         }).ToList()
-                }
+                },
+
+               Experts = offre.Assignations?.Select(a => new ExpertDto
+{
+    Id = a.Expert.Id,
+    UtilisateurId = a.Expert.UtilisateurId ?? Guid.Empty,
+    Nom = a.Expert.Utilisateur != null ? a.Expert.Utilisateur.Nom : string.Empty,
+    EntrepriseId = a.Expert.EntrepriseId ?? Guid.Empty,
+    NomEntreprise = offre.Entreprise?.Nom,
+    Poste = a.Expert.Poste
+}).ToList() ?? new List<ExpertDto>()
             };
         }
         public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(  Guid? entrepriseId, string? search,string? filter)

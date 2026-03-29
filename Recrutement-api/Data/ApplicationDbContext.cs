@@ -10,13 +10,13 @@ namespace Recrutement_api.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
 
-        public DbSet<Utilisateur>           Utilisateurs           { get; set; }
-        public DbSet<Tenant>                Tenants                { get; set; }
-        public DbSet<Entreprise>            Entreprises            { get; set; }
-        public DbSet<Entreprise>            Companies              => Entreprises;
-        public DbSet<Expert>                Experts                { get; set; }
-        public DbSet<Candidat>              Candidats              { get; set; }
-        public DbSet<OffreEmploi>           OffresEmploi           { get; set; }
+        public DbSet<Utilisateur> Utilisateurs { get; set; }
+        public DbSet<Tenant> Tenants { get; set; }
+        public DbSet<Entreprise> Entreprises { get; set; }
+        public DbSet<Entreprise> Companies => Entreprises;
+        public DbSet<Expert> Experts { get; set; }
+        public DbSet<Candidat> Candidats { get; set; }
+        public DbSet<OffreEmploi> OffresEmploi { get; set; }
         public DbSet<FormulaireCandidature> FormulairesCandidature { get; set; }
         public DbSet<Candidature>           Candidatures           { get; set; }
         public DbSet<AssignationExpert>     AssignationsExperts    { get; set; }
