@@ -1,5 +1,6 @@
-﻿using CloudinaryDotNet;
+using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -192,6 +193,10 @@ public async Task<IActionResult> Postuler(
 
         _context.Candidatures.Add(candidature);
         await _context.SaveChangesAsync();
+
+        // Ajout à la file d'attente Hangfire pour l'extraction du texte du CV
+        BackgroundJob.Enqueue<Recrutement_api.Services.CvExtraction.CvBackgroundProcessingService>(
+            service => service.ProcessCvTaskAsync(candidature.Id, candidature.CvUrl));
 
         return Ok(new { message = "Candidature envoyée", candidature.Id, cvUrl });
     }
