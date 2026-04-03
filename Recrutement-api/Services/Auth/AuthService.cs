@@ -167,6 +167,12 @@ namespace Recrutement_api.Services
             Guid? expertId = null;
             Guid? candidatId = null;
 
+            if (user.Role == RoleUtilisateur.Admin)
+{
+    var adminToken = _jwtService.GenerateToken(user, null, null, null);
+    return new AuthResponseDto { Token = adminToken, UserName = user.Nom };
+}
+
             // ================================
             // Tenant validation
             // ================================

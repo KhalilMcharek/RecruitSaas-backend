@@ -1,6 +1,4 @@
-﻿
-
-namespace Recrutement_api.Services.Expert;
+﻿namespace Recrutement_api.Services.Expert;
 using Recrutement_api.DTOs.Email;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
@@ -20,12 +18,29 @@ public class ExpertService
         _emailService = emailService;
     }
 
-    // 1. INVITER un expert
-    //    POST /api/tenant/experts/invite
-    //    tenantId vient du JWT (extrait dans le controller)
-    public async Task<ExpertResponseDto> InviteExpertAsync(InviteExpertDto dto, Guid tenantId)
+    // Résoudre le vrai TenantId depuis userId ou tenantId
+    private async Task<Guid> ResolveTenantIdAsync(Guid userOrTenantId)
     {
-        // Verifier que lentreprise appartient BIEN a ce tenant
+        // Cas 1 : c'est déjà un TenantId direct
+        bool isTenant = await _context.Tenants
+            .AnyAsync(t => t.Id == userOrTenantId);
+        if (isTenant) return userOrTenantId;
+
+        // Cas 2 : c'est un UserId — cherche le Tenant correspondant
+        var tenant = await _context.Tenants
+            .FirstOrDefaultAsync(t => t.UtilisateurId == userOrTenantId);
+
+        if (tenant == null)
+            throw new UnauthorizedAccessException("Tenant introuvable pour cet utilisateur.");
+
+        return tenant.Id;
+    }
+
+    // 1. INVITER un expert
+    public async Task<ExpertResponseDto> InviteExpertAsync(InviteExpertDto dto, Guid userOrTenantId)
+    {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         var company = await _context.Companies
             .FirstOrDefaultAsync(c => c.Id == dto.CompanyId && c.TenantId == tenantId)
             ?? throw new KeyNotFoundException("Entreprise introuvable ou acces refuse.");
@@ -36,46 +51,44 @@ public class ExpertService
             throw new InvalidOperationException(
                 $"Un expert avec lemail {dto.Email} existe deja dans cette entreprise.");
 
-        // Générer mot de passe temporaire
-    var tempPassword = GenerateTempPassword();
+        var tempPassword = GenerateTempPassword();
 
-    var expert = new Expert
-    {
-    FirstName       = dto.FirstName,
-    LastName        = dto.LastName,
-    Email           = dto.Email,
-    CompanyId       = dto.CompanyId,
-    TenantId        = tenantId,
-    IsInvited       = true,
-    IsActive        = false,
-    TemporaryPassword = BC.HashPassword(tempPassword) 
-    };
+        var expert = new Expert
+        {
+            FirstName         = dto.FirstName,
+            LastName          = dto.LastName,
+            Email             = dto.Email,
+            CompanyId         = dto.CompanyId,
+            TenantId          = tenantId,
+            IsInvited         = true,
+            IsActive          = false,
+            TemporaryPassword = BC.HashPassword(tempPassword)
+        };
 
-     _context.Experts.Add(expert);
-    await _context.SaveChangesAsync();
+        _context.Experts.Add(expert);
+        await _context.SaveChangesAsync();
 
-    await _emailService.SendExpertInvitationAsync(new ExpertInvitationEmailDto
-    {
-    ToEmail           = dto.Email,
-    ToName            = $"{dto.FirstName} {dto.LastName}",
-    CompanyName       = company.Nom,
-    InvitedByName     = "L'équipe RH",
-    InvitationUrl     = "http://localhost:5173/login",
-    ExpiresAt         = DateTime.UtcNow.AddDays(7),
-    TemporaryPassword = tempPassword  // clair dans l'email
-    });
+        await _emailService.SendExpertInvitationAsync(new ExpertInvitationEmailDto
+        {
+            ToEmail           = dto.Email,
+            ToName            = $"{dto.FirstName} {dto.LastName}",
+            CompanyName       = company.Nom,
+            InvitedByName     = "L'équipe RH",
+            InvitationUrl     = "http://localhost:5173/login",
+            ExpiresAt         = DateTime.UtcNow.AddDays(7),
+            TemporaryPassword = tempPassword
+        });
+
         await _context.Entry(expert).Reference(e => e.Company).LoadAsync();
-
         return ToDto(expert);
     }
 
-    // 2. LISTE des experts dune entreprise
-    //    GET /api/tenant/companies/{companyId}/experts
-    //    tenantId assure que le recruteur ne voit que ses entreprises
+    // 2. LISTE des experts d'une entreprise
     public async Task<ExpertListResponseDto> GetExpertsByCompanyAsync(
-        Guid companyId, ExpertFilterDto filter, Guid tenantId)
+        Guid companyId, ExpertFilterDto filter, Guid userOrTenantId)
     {
-        // Lentreprise existe ET appartient a ce tenant ?
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         bool ok = await _context.Companies
             .AnyAsync(c => c.Id == companyId && c.TenantId == tenantId);
         if (!ok)
@@ -107,16 +120,19 @@ public class ExpertService
 
         return new ExpertListResponseDto
         {
-            Items = items, Total = total,
-            Page = filter.Page, PageSize = filter.PageSize,
+            Items      = items,
+            Total      = total,
+            Page       = filter.Page,
+            PageSize   = filter.PageSize,
             TotalPages = (int)Math.Ceiling(total / (double)filter.PageSize)
         };
     }
 
-    // 3. DETAIL dun expert
-    //    GET /api/tenant/experts/{id}
-    public async Task<ExpertResponseDto> GetExpertByIdAsync(Guid id, Guid tenantId)
+    // 3. DETAIL d'un expert
+    public async Task<ExpertResponseDto> GetExpertByIdAsync(Guid id, Guid userOrTenantId)
     {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         var expert = await _context.Experts
             .Include(e => e.Company)
             .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
@@ -126,9 +142,10 @@ public class ExpertService
     }
 
     // 4. MODIFIER un expert
-    //    PUT /api/tenant/experts/{id}
-    public async Task<ExpertResponseDto> UpdateExpertAsync(Guid id, UpdateExpertDto dto, Guid tenantId)
+    public async Task<ExpertResponseDto> UpdateExpertAsync(Guid id, UpdateExpertDto dto, Guid userOrTenantId)
     {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         var expert = await _context.Experts
             .Include(e => e.Company)
             .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
@@ -150,10 +167,11 @@ public class ExpertService
         return ToDto(expert);
     }
 
-    // 5. DESACTIVER un expert
-    //    PUT /api/tenant/experts/{id}/deactivate
-    public async Task DeactivateExpertAsync(Guid id, Guid tenantId)
+    // 5. DESACTIVER
+    public async Task DeactivateExpertAsync(Guid id, Guid userOrTenantId)
     {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         var expert = await _context.Experts
             .Include(e => e.Company)
             .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
@@ -166,10 +184,11 @@ public class ExpertService
         await _context.SaveChangesAsync();
     }
 
-    // 6. REACTIVER un expert
-    //    PUT /api/tenant/experts/{id}/reactivate
-    public async Task ReactivateExpertAsync(Guid id, Guid tenantId)
+    // 6. REACTIVER
+    public async Task ReactivateExpertAsync(Guid id, Guid userOrTenantId)
     {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
         var expert = await _context.Experts
             .Include(e => e.Company)
             .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
@@ -182,28 +201,36 @@ public class ExpertService
         await _context.SaveChangesAsync();
     }
 
+    // 7. SUPPRIMER
+    public async Task DeleteExpertAsync(Guid id, Guid userOrTenantId)
+    {
+        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
+        var expert = await _context.Experts
+            .Include(e => e.Company)
+            .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
+            ?? throw new KeyNotFoundException("Expert introuvable ou acces refuse.");
+
+        _context.Experts.Remove(expert);
+        await _context.SaveChangesAsync();
+    }
+
     private static ExpertResponseDto ToDto(Expert e) => new()
     {
-        Id = e.Id, FullName = $"{e.FirstName} {e.LastName}",
-        Email = e.Email, IsActive = e.IsActive,
-        IsInvited = e.IsInvited, CompanyName = e.Company?.Nom ?? string.Empty
+        Id          = e.Id,
+        FullName    = $"{e.FirstName} {e.LastName}",
+        Email       = e.Email,
+        IsActive    = e.IsActive,
+        IsInvited   = e.IsInvited,
+        CompanyName = e.Company?.Nom ?? string.Empty
     };
+
     private static string GenerateTempPassword()
     {
-    var chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
-    var random = new Random();
-    return new string(Enumerable.Range(0, 10)
-        .Select(_ => chars[random.Next(chars.Length)])
-        .ToArray());
+        var chars  = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+        var random = new Random();
+        return new string(Enumerable.Range(0, 10)
+            .Select(_ => chars[random.Next(chars.Length)])
+            .ToArray());
     }
-    public async Task DeleteExpertAsync(Guid id, Guid tenantId)
-{
-    var expert = await _context.Experts
-        .Include(e => e.Company)
-        .FirstOrDefaultAsync(e => e.Id == id && e.Company.TenantId == tenantId)
-        ?? throw new KeyNotFoundException("Expert introuvable ou acces refuse.");
-
-    _context.Experts.Remove(expert);
-    await _context.SaveChangesAsync();
-}
 }

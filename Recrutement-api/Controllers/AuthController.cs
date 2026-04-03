@@ -1,5 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Recrutement_api.Data;
 using Recrutement_api.DTOs;
+using Recrutement_api.Models;
 using Recrutement_api.Services;
 
 namespace Recrutement_api.Controllers
@@ -9,15 +12,14 @@ namespace Recrutement_api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly ApplicationDbContext _context;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, ApplicationDbContext context)
         {
             _authService = authService;
+            _context = context;
         }
 
-        // =====================================================
-        // REGISTER CANDIDATE
-        // =====================================================
         [HttpPost("register")]
         public async Task<IActionResult> RegisterCandidate([FromBody] RegisterDto dto)
         {
@@ -32,9 +34,6 @@ namespace Recrutement_api.Controllers
             }
         }
 
-        // =====================================================
-        // REGISTER COMPANY (Tenant request)
-        // =====================================================
         [HttpPost("company/register")]
         public async Task<IActionResult> RegisterCompany([FromBody] CompanyRegisterDto dto)
         {
@@ -49,9 +48,6 @@ namespace Recrutement_api.Controllers
             }
         }
 
-        // =====================================================
-        // LOGIN
-        // =====================================================
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -62,11 +58,10 @@ namespace Recrutement_api.Controllers
             }
             catch (Exception ex)
             {
-                return Unauthorized(new { Message = ex.Message });
+                return Unauthorized(new { message = ex.Message });
             }
         }
 
-        
         
     }
 }

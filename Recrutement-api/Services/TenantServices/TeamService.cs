@@ -101,14 +101,16 @@ namespace Recrutement_api.Services.TenantServices
             };
             await _context.Utilisateurs.AddAsync(utilisateur);
 
-            var expert = new Recrutement_api.Models.Expert
-            {
-                Id = Guid.NewGuid(),
-                UtilisateurId = utilisateur.Id,
-                EntrepriseId = dto.EntrepriseId,
-                Poste = dto.Poste,
-                CreeLe = DateTime.UtcNow
-            };
+           var expert = new Recrutement_api.Models.Expert
+{
+    Id = Guid.NewGuid(),
+    UtilisateurId = utilisateur.Id,
+    EntrepriseId = dto.EntrepriseId,
+    CompanyId = dto.EntrepriseId,
+    TenantId = entreprise.TenantId,
+    Poste = dto.Poste,
+    CreeLe = DateTime.UtcNow
+};
 
             _context.Experts.Add(expert);
             await _context.SaveChangesAsync();
