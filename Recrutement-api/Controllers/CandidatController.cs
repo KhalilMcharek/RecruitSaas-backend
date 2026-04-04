@@ -23,6 +23,21 @@ namespace Recrutement_api.Controllers
         private readonly ILogger<CandidatController> _logger;
         private readonly IOffreService _offreService;
 
+        // Extensions d'images reconnues par Cloudinary nativement
+        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg", "ico", "avif", "heic", "heif"
+        };
+
+        // Extensions qui doivent TOUJOURS être traitées comme raw (jamais comme image)
+        private static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "pdf", "docx", "doc", "odt", "rtf", "txt",
+            "zip", "rar", "7z", "tar", "gz",
+            "xlsx", "xls", "pptx", "ppt",
+            "csv", "json", "xml"
+        };
+
         public CandidatController(
             ApplicationDbContext context,
             IOptions<CloudinarySettings> cloudinaryConfig,
@@ -54,6 +69,97 @@ namespace Recrutement_api.Controllers
             if (claim == null) return null;
             if (Guid.TryParse(claim, out var id)) return id;
             return null;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Helper : détermine si le fichier doit être uploadé en raw
+        // Priorité à l'extension — un PDF ne doit JAMAIS passer en image
+        // ─────────────────────────────────────────────────────────────
+        private static bool MustUploadAsRaw(IFormFile file)
+        {
+            var ext = Path.GetExtension(file.FileName)?.TrimStart('.') ?? string.Empty;
+
+            // 1. Si l'extension est dans la liste raw → toujours raw
+            if (RawExtensions.Contains(ext))
+                return true;
+
+            // 2. Si l'extension est une image connue → pas raw
+            if (ImageExtensions.Contains(ext))
+                return false;
+
+            // 3. Fallback : vérifier le Content-Type
+            if (!string.IsNullOrEmpty(file.ContentType) &&
+                file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // 4. Inconnu → raw par sécurité
+            return true;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Helper : upload un fichier vers Cloudinary
+        //
+        // RÈGLE STRICTE :
+        //   - PDF, DOCX, etc.  → RawUploadParams  (resource_type=raw)
+        //   - Images           → ImageUploadParams (resource_type=image)
+        //   - NE PAS utiliser FetchFormat("auto") → modifie l'extension
+        //     et corrompait les URLs stockées en base
+        // ─────────────────────────────────────────────────────────────
+        private async Task<(string? Url, string? Error)> UploadToCloudinary(
+            IFormFile file, string folder)
+        {
+            using var stream = file.OpenReadStream();
+
+            if (MustUploadAsRaw(file))
+            {
+                // ── Fichier brut (PDF, DOCX, ZIP…) ────────────────
+                _logger.LogInformation("Cloudinary upload RAW: {name}", file.FileName);
+
+                var uploadParams = new RawUploadParams
+                {
+                    File       = new FileDescription(file.FileName, stream),
+                    Folder     = folder,
+                    Type       = "upload",
+                    AccessMode = "public"
+                };
+
+                var result = await _cloudinary.UploadAsync(uploadParams);
+
+                if (result.Error != null)
+                {
+                    _logger.LogWarning("Cloudinary RAW error: {msg}", result.Error.Message);
+                    return (null, result.Error.Message);
+                }
+
+                _logger.LogInformation("Cloudinary RAW OK → {url}", result.SecureUrl);
+                return (result.SecureUrl.ToString(), null);
+            }
+            else
+            {
+                // ── Image ──────────────────────────────────────────
+                _logger.LogInformation("Cloudinary upload IMAGE: {name}", file.FileName);
+
+                var uploadParams = new ImageUploadParams
+                {
+                    File   = new FileDescription(file.FileName, stream),
+                    Folder = folder,
+                    // ⚠️ Quality("auto") uniquement — PAS de FetchFormat("auto")
+                    //    FetchFormat change l'extension dans l'URL retournée
+                    //    ce qui corrompait les URLs stockées en base
+                    Transformation = new Transformation().Quality("auto")
+                };
+
+                var result = await _cloudinary.UploadAsync(uploadParams);
+
+                if (result.Error != null)
+                {
+                    _logger.LogWarning("Cloudinary IMAGE error: {msg}", result.Error.Message);
+                    return (null, result.Error.Message);
+                }
+
+                _logger.LogInformation("Cloudinary IMAGE OK → {url}", result.SecureUrl);
+                return (result.SecureUrl.ToString(), null);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -90,162 +196,158 @@ namespace Recrutement_api.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────
-        // POST api/candidat/postuler
+        // ✅ POST api/candidat/postuler
+        // Accepte : PDF, DOCX, DOC, PNG, JPG, JPEG, GIF, WEBP, BMP,
+        //           TIFF, SVG, ZIP, RAR, et tout autre format
         // ─────────────────────────────────────────────────────────────
-[HttpPost("postuler")]
-public async Task<IActionResult> Postuler(
-    [FromForm] Guid offreId,
-    [FromForm] IFormFile cv,
-    [FromForm] string? fullName,
-    [FromForm] string? email,
-    [FromForm] string? portfolioUrl,
-    [FromForm] string? motivation,
-    [FromForm] string? champsPersonnalises)
-{
-    try
-    {
-        // ─── 1. UserId depuis le JWT ───
-        var userId = GetCandidatIdFromToken();
-        if (userId == null)
-            return Unauthorized(new { message = "Session invalide." });
-
-        // ─── 2. Lookup via UtilisateurId ───
-        var candidat = await _context.Candidats
-            .FirstOrDefaultAsync(c => c.UtilisateurId == userId.Value);
-
-        if (candidat == null)
-            return NotFound(new { message = "Profil candidat introuvable." });
-
-        if (cv == null || cv.Length == 0)
-            return BadRequest(new { message = "Le CV est obligatoire." });
-
-        var offre = await _context.OffresEmploi
-            .FirstOrDefaultAsync(o => o.Id == offreId && o.EstPublie);
-
-        if (offre == null)
-            return BadRequest(new { message = "Offre invalide." });
-
-        var dejaPostule = await _context.Candidatures
-            .AnyAsync(c => c.OffreId == offreId && c.CandidatId == candidat.Id);
-
-        if (dejaPostule)
-            return Conflict(new { message = "Déjà postulé." });
-
-        // ─── 3. Upload CV sur Cloudinary ───
-        string cvUrl;
-        using (var stream = cv.OpenReadStream())
-        {
-            var uploadParams = new RawUploadParams
-            {
-                File   = new FileDescription(cv.FileName, stream),
-                Folder = "cvs"
-            };
-            var result = await _cloudinary.UploadAsync(uploadParams);
-            if (result.Error != null)
-                return StatusCode(500, new { message = result.Error.Message });
-            cvUrl = result.SecureUrl.ToString();
-        }
-
-        // ─── 4. Upload des fichiers custom sur Cloudinary ───
-        //       Le frontend envoie : customFile_0, customFile_0_question
-        //                            customFile_1, customFile_1_question, ...
-        var customFileUrls = new Dictionary<string, string>(); // question → url
-
-        int idx = 0;
-        while (true)
-        {
-            var fileKey     = $"customFile_{idx}";
-            var questionKey = $"customFile_{idx}_question";
-
-            var customFile     = Request.Form.Files.GetFile(fileKey);
-            var customQuestion = Request.Form.ContainsKey(questionKey)
-                                    ? Request.Form[questionKey].ToString()
-                                    : null;
-
-            if (customFile == null) break; // plus de fichiers
-
-            using (var stream = customFile.OpenReadStream())
-            {
-                var uploadParams = new RawUploadParams
-                {
-                    File   = new FileDescription(customFile.FileName, stream),
-                    Folder = "candidatures_fichiers"   // dossier dédié dans Cloudinary
-                };
-                var result = await _cloudinary.UploadAsync(uploadParams);
-
-                if (result.Error != null)
-                {
-                    _logger.LogWarning("Cloudinary custom file error: {msg}", result.Error.Message);
-                }
-                else
-                {
-                    var label = !string.IsNullOrEmpty(customQuestion)
-                                    ? customQuestion
-                                    : fileKey;
-                    customFileUrls[label] = result.SecureUrl.ToString();
-                }
-            }
-
-            idx++;
-        }
-
-        // ─── 5. Construire le JSON des réponses ───
-        var responses = new Dictionary<string, object>();
-
-        if (!string.IsNullOrEmpty(fullName))     responses["fullName"]     = fullName;
-        if (!string.IsNullOrEmpty(email))        responses["email"]        = email;
-        if (!string.IsNullOrEmpty(portfolioUrl)) responses["portfolioUrl"] = portfolioUrl;
-        if (!string.IsNullOrEmpty(motivation))   responses["motivation"]   = motivation;
-
-        // Champs texte / nombre / textarea
-        if (!string.IsNullOrWhiteSpace(champsPersonnalises))
+        [HttpPost("postuler")]
+        public async Task<IActionResult> Postuler(
+            [FromForm] Guid      offreId,
+            [FromForm] IFormFile cv,
+            [FromForm] string?   fullName,
+            [FromForm] string?   email,
+            [FromForm] string?   portfolioUrl,
+            [FromForm] string?   motivation,
+            [FromForm] string?   champsPersonnalises)
         {
             try
             {
-                var extra = System.Text.Json.JsonSerializer
-                    .Deserialize<Dictionary<string, object>>(champsPersonnalises);
-                if (extra != null)
-                    foreach (var kv in extra)
-                        responses[kv.Key] = kv.Value;
+                // ─── 1. UserId depuis le JWT ───────────────────────
+                var userId = GetCandidatIdFromToken();
+                if (userId == null)
+                    return Unauthorized(new { message = "Session invalide." });
+
+                // ─── 2. Lookup du candidat ─────────────────────────
+                var candidat = await _context.Candidats
+                    .FirstOrDefaultAsync(c => c.UtilisateurId == userId.Value);
+
+                if (candidat == null)
+                    return NotFound(new { message = "Profil candidat introuvable." });
+
+                if (cv == null || cv.Length == 0)
+                    return BadRequest(new { message = "Le CV est obligatoire." });
+
+                // ─── Vérification taille CV (max 10 MB) ───────────
+                if (cv.Length > 10 * 1024 * 1024)
+                    return BadRequest(new { message = "Le CV ne doit pas dépasser 10MB." });
+
+                var offre = await _context.OffresEmploi
+                    .FirstOrDefaultAsync(o => o.Id == offreId && o.EstPublie);
+
+                if (offre == null)
+                    return BadRequest(new { message = "Offre invalide." });
+
+                var dejaPostule = await _context.Candidatures
+                    .AnyAsync(c => c.OffreId == offreId && c.CandidatId == candidat.Id);
+
+                if (dejaPostule)
+                    return Conflict(new { message = "Déjà postulé." });
+
+                // ─── 3. Upload CV sur Cloudinary ───────────────────
+                // MustUploadAsRaw() garantit que les PDFs vont en /raw/upload/
+                var (cvUrl, cvError) = await UploadToCloudinary(cv, "cvs");
+
+                if (cvError != null)
+                    return StatusCode(500, new { message = $"Erreur upload CV : {cvError}" });
+
+                // ─── 4. Upload fichiers custom sur Cloudinary ──────
+                var customFileUrls = new Dictionary<string, string>(); // question → url
+
+                int idx = 0;
+                while (true)
+                {
+                    var fileKey      = $"customFile_{idx}";
+                    var questionKey  = $"customFile_{idx}_question";
+
+                    var customFile    = Request.Form.Files.GetFile(fileKey);
+                    var customQuestion = Request.Form.ContainsKey(questionKey)
+                                            ? Request.Form[questionKey].ToString()
+                                            : null;
+
+                    if (customFile == null) break;
+
+                    if (customFile.Length > 10 * 1024 * 1024)
+                    {
+                        _logger.LogWarning("Fichier custom trop lourd: {name}", customFile.FileName);
+                        idx++;
+                        continue;
+                    }
+
+                    var (fileUrl, fileError) = await UploadToCloudinary(customFile, "candidatures_fichiers");
+
+                    if (fileError != null)
+                    {
+                        _logger.LogWarning("Cloudinary custom file error: {msg}", fileError);
+                    }
+                    else
+                    {
+                        var label = !string.IsNullOrEmpty(customQuestion)
+                                        ? customQuestion
+                                        : fileKey;
+                        customFileUrls[label] = fileUrl!;
+                    }
+
+                    idx++;
+                }
+
+                // ─── 5. Construire le JSON des réponses ───────────
+                var responses = new Dictionary<string, object>();
+
+                if (!string.IsNullOrEmpty(fullName))     responses["fullName"]     = fullName;
+                if (!string.IsNullOrEmpty(email))        responses["email"]        = email;
+                if (!string.IsNullOrEmpty(portfolioUrl)) responses["portfolioUrl"] = portfolioUrl;
+                if (!string.IsNullOrEmpty(motivation))   responses["motivation"]   = motivation;
+
+                if (!string.IsNullOrWhiteSpace(champsPersonnalises))
+                {
+                    try
+                    {
+                        var extra = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, object>>(champsPersonnalises);
+                        if (extra != null)
+                            foreach (var kv in extra)
+                                responses[kv.Key] = kv.Value;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("JSON invalide champsPersonnalises: {msg}", ex.Message);
+                    }
+                }
+
+                foreach (var kv in customFileUrls)
+                    responses[kv.Key] = kv.Value;
+
+                var formulaireResponsesJson = responses.Count > 0
+                    ? System.Text.Json.JsonSerializer.Serialize(responses)
+                    : "{}";
+
+                // ─── 6. INSERT en base ─────────────────────────────
+                var candidature = new Candidature
+                {
+                    Id                  = Guid.NewGuid(),
+                    OffreId             = offreId,
+                    CandidatId          = candidat.Id,
+                    CvUrl               = cvUrl!,
+                    Statut              = "Nouvelle",
+                    CreeLe              = DateTime.UtcNow,
+                    FormulaireResponses = formulaireResponsesJson
+                };
+
+                _context.Candidatures.Add(candidature);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("✅ Candidature créée: {id}", candidature.Id);
+
+                return Ok(new { message = "Candidature envoyée", candidature.Id, cvUrl });
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("JSON invalide: {msg}", ex.Message);
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                _logger.LogError("❌ Erreur postuler: {msg}", msg);
+                return StatusCode(500, new { message = msg });
             }
         }
 
-        // ✅ Ajouter les URLs des fichiers custom dans FormulaireResponses
-        foreach (var kv in customFileUrls)
-            responses[kv.Key] = kv.Value;
-
-        var formulaireResponsesJson = responses.Count > 0
-            ? System.Text.Json.JsonSerializer.Serialize(responses)
-            : "{}";
-
-        // ─── 6. INSERT DB ───
-        var candidature = new Candidature
-        {
-            Id                  = Guid.NewGuid(),
-            OffreId             = offreId,
-            CandidatId          = candidat.Id,
-            CvUrl               = cvUrl,
-            Statut              = "Nouvelle",
-            CreeLe              = DateTime.UtcNow,
-            FormulaireResponses = formulaireResponsesJson
-        };
-
-        _context.Candidatures.Add(candidature);
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = "Candidature envoyée", candidature.Id, cvUrl });
-    }
-    catch (Exception ex)
-    {
-        var msg = ex.InnerException?.Message ?? ex.Message;
-        _logger.LogError("Erreur: {msg}", msg);
-        return StatusCode(500, new { message = msg });
-    }
-}
         // ─────────────────────────────────────────────────────────────
         // GET api/candidat/mes-candidatures
         // ─────────────────────────────────────────────────────────────
@@ -328,5 +430,5 @@ public async Task<IActionResult> Postuler(
 
             return Ok(offre);
         }
-
-    }}
+    }
+}
