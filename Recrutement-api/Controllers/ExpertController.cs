@@ -1,4 +1,4 @@
-﻿namespace Recrutement_api.Controllers;
+namespace Recrutement_api.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +15,7 @@ public class ExpertController : ControllerBase
 
     private Guid GetTenantId()
     {
-        // Cherche d'abord "tenantId", puis "sub" (userId utilisé comme fallback)
         var claims = User.Claims.ToList();
-        
-        // Debug — à supprimer après
         foreach (var c in claims)
             Console.WriteLine($"[CLAIM] {c.Type} = {c.Value}");
 
@@ -26,14 +23,13 @@ public class ExpertController : ControllerBase
         if (!string.IsNullOrEmpty(tenantClaim))
             return Guid.Parse(tenantClaim);
 
-        // Fallback : chercher via la DB depuis le userId dans "sub"
-        var userIdStr = User.FindFirstValue("sub") 
+        var userIdStr = User.FindFirstValue("sub")
                      ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        
+
         if (string.IsNullOrEmpty(userIdStr))
             throw new UnauthorizedAccessException("Token invalide : aucun identifiant trouvé.");
 
-        return Guid.Parse(userIdStr); // on passera l'userId et on cherchera en DB
+        return Guid.Parse(userIdStr);
     }
 
     [HttpPost("experts/invite")]

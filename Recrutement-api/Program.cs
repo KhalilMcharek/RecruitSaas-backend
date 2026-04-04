@@ -32,11 +32,9 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
     .WriteTo.File("logs/errors-.txt", rollingInterval: RollingInterval.Day,
-        restrictedToMinimumLevel: LogEventLevel.Error,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
+        restrictedToMinimumLevel: LogEventLevel.Error)
     .CreateLogger();
 builder.Host.UseSerilog();
 
@@ -87,17 +85,19 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient(); // ← pour le proxy Cloudinary
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+//builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Implementations.ExpertService>();
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
-builder.Services.AddScoped<ExpertService>();
+builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
@@ -122,7 +122,4 @@ app.UseStaticFiles(new StaticFileOptions
 });
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
 app.MapControllers();
-
-
-
 app.Run();

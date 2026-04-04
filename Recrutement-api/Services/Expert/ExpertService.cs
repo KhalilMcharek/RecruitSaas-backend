@@ -1,4 +1,4 @@
-﻿namespace Recrutement_api.Services.Expert;
+namespace Recrutement_api.Services.Expert;
 using Recrutement_api.DTOs.Email;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
@@ -18,15 +18,11 @@ public class ExpertService
         _emailService = emailService;
     }
 
-    // Résoudre le vrai TenantId depuis userId ou tenantId
     private async Task<Guid> ResolveTenantIdAsync(Guid userOrTenantId)
     {
-        // Cas 1 : c'est déjà un TenantId direct
-        bool isTenant = await _context.Tenants
-            .AnyAsync(t => t.Id == userOrTenantId);
+        bool isTenant = await _context.Tenants.AnyAsync(t => t.Id == userOrTenantId);
         if (isTenant) return userOrTenantId;
 
-        // Cas 2 : c'est un UserId — cherche le Tenant correspondant
         var tenant = await _context.Tenants
             .FirstOrDefaultAsync(t => t.UtilisateurId == userOrTenantId);
 
@@ -36,7 +32,6 @@ public class ExpertService
         return tenant.Id;
     }
 
-    // 1. INVITER un expert
     public async Task<ExpertResponseDto> InviteExpertAsync(InviteExpertDto dto, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
@@ -83,7 +78,6 @@ public class ExpertService
         return ToDto(expert);
     }
 
-    // 2. LISTE des experts d'une entreprise
     public async Task<ExpertListResponseDto> GetExpertsByCompanyAsync(
         Guid companyId, ExpertFilterDto filter, Guid userOrTenantId)
     {
@@ -128,7 +122,6 @@ public class ExpertService
         };
     }
 
-    // 3. DETAIL d'un expert
     public async Task<ExpertResponseDto> GetExpertByIdAsync(Guid id, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
@@ -141,7 +134,6 @@ public class ExpertService
         return ToDto(expert);
     }
 
-    // 4. MODIFIER un expert
     public async Task<ExpertResponseDto> UpdateExpertAsync(Guid id, UpdateExpertDto dto, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
@@ -167,7 +159,6 @@ public class ExpertService
         return ToDto(expert);
     }
 
-    // 5. DESACTIVER
     public async Task DeactivateExpertAsync(Guid id, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
@@ -184,7 +175,6 @@ public class ExpertService
         await _context.SaveChangesAsync();
     }
 
-    // 6. REACTIVER
     public async Task ReactivateExpertAsync(Guid id, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
@@ -201,7 +191,6 @@ public class ExpertService
         await _context.SaveChangesAsync();
     }
 
-    // 7. SUPPRIMER
     public async Task DeleteExpertAsync(Guid id, Guid userOrTenantId)
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
