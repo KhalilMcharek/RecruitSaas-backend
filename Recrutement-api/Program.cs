@@ -76,7 +76,7 @@ builder.Services.AddEndpointsApiExplorer();
 // Tes services
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
-
+builder.Services.AddScoped<IExpertService, ExpertService>();
 
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 
@@ -110,6 +110,8 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 builder.Services.AddHttpContextAccessor();
+// ── Nécessaire pour le proxy Cloudinary dans ExpertController ──
+builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
