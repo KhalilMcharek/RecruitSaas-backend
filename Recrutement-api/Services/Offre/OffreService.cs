@@ -203,15 +203,15 @@ namespace Recrutement_api.Services
                         }).ToList()
                 },
 
-                Experts = offre.Assignations?.Select(a => new ExpertDto
-                {
-                    Id = a.Expert.Id,
-                    UtilisateurId = a.Expert.UtilisateurId,
-                    Nom = a.Expert.Utilisateur.Nom,
-                    EntrepriseId = a.Expert.EntrepriseId,
-                    NomEntreprise = offre.Entreprise?.Nom,
-                    Poste = a.Expert.Poste
-                }).ToList() ?? new List<ExpertDto>()
+               Experts = offre.Assignations?.Select(a => new ExpertDto
+{
+    Id = a.Expert.Id,
+    UtilisateurId = a.Expert.UtilisateurId ?? Guid.Empty,
+    Nom = a.Expert.Utilisateur != null ? a.Expert.Utilisateur.Nom : string.Empty,
+    EntrepriseId = a.Expert.EntrepriseId ?? Guid.Empty,
+    NomEntreprise = offre.Entreprise?.Nom,
+    Poste = a.Expert.Poste
+}).ToList() ?? new List<ExpertDto>()
             };
         }
         public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(  Guid? entrepriseId, string? search,string? filter)
@@ -382,10 +382,10 @@ namespace Recrutement_api.Services
                 .Select(e => new ExpertDto
                 {
                     Id = e.Id,
-                    UtilisateurId = e.UtilisateurId,
-                    Nom = e.Utilisateur.Nom,
-                    EntrepriseId = e.EntrepriseId,
-                    NomEntreprise = e.Entreprise.Nom,
+                    UtilisateurId = e.UtilisateurId ?? Guid.Empty,  
+                    Nom = e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty,
+                    EntrepriseId = e.EntrepriseId ?? Guid.Empty,    
+                    NomEntreprise = e.Entreprise != null ? e.Entreprise.Nom : string.Empty,
                     Poste = e.Poste
                 })
                 .Take(10)

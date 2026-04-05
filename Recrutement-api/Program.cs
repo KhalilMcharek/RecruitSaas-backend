@@ -1,68 +1,55 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Recrutement_api.Configuration;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services;
+using Recrutement_api.Services.Expert;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
-
-
+using Recrutement_api.Services.Shared;
+using Recrutement_api.Services.TenantServices;
 using Serilog;
 using Serilog.Events;
-using Recrutement_api.Services.TenantServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// =============================
-// DOSSIER LOGS
-// =============================
-Directory.CreateDirectory("logs");
+// Email config
+builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
+builder.Configuration["EmailSettings:SmtpPort"] = "587";
+builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
+builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
+builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-2c2413a0887ad3e8d10ffd3af9adf495a909a8b1c8c184a3994dca5b9da17194-t1UiJzUeUyMIGcW3";
+builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
+builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
+builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
-// =============================
-// CONFIGURATION SERILOG
-// =============================
+// Serilog
+Directory.CreateDirectory("logs");
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .Enrich.FromLogContext()
-    .WriteTo.Console(
-        outputTemplate:
-        "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
-    .WriteTo.File(
-        "logs/log-.txt",
-        rollingInterval: RollingInterval.Day,
-        outputTemplate:
-        "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
-    .WriteTo.File(
-        "logs/errors-.txt",
-        rollingInterval: RollingInterval.Day,
-        restrictedToMinimumLevel: LogEventLevel.Error,
-        outputTemplate:
-        "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}"
-    )
+    .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("logs/errors-.txt", rollingInterval: RollingInterval.Day,
+        restrictedToMinimumLevel: LogEventLevel.Error)
     .CreateLogger();
-
 builder.Host.UseSerilog();
 
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-
+// Services
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
-
-// =============================
-// SERVICES
-// =============================
-
-// Controllers + JSON
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.WithOrigins("http://localhost:5173", "http://localhost:8080", "http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -70,82 +57,53 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
-
 builder.Services.AddEndpointsApiExplorer();
-
-// Tes services
-builder.Services.AddScoped<TenantService>();
-builder.Services.AddScoped<AdminService>();
-builder.Services.AddScoped<IExpertService, ExpertService>();
-
-builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
-
-
-// --------------------------
-// CORS
-// --------------------------
-builder.Services.AddCors(options =>
+builder.Services.AddSwaggerGen(c =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
-        policy
-            .WithOrigins(
-                "http://localhost:5173",
-                "http://localhost:8080",
-                "http://localhost:3000"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Entrez: Bearer {votre_token}"
+    });
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
     });
 });
-
-// --------------------------
-// JWT & AUTHENTICATION — une seule fois via l'extension
-// --------------------------
-builder.Services.AddJwtAuthentication(builder.Configuration);
-
-// --------------------------
-// SERVICES MÉTIER
-// --------------------------
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient(); // ← pour le proxy Cloudinary
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
-builder.Services.AddHttpContextAccessor();
-// ── Nécessaire pour le proxy Cloudinary dans ExpertController ──
-builder.Services.AddHttpClient();
-
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-
-
-builder.Services.AddHttpContextAccessor();
-
-// =============================
-
+builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
+builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Expert.Implementations.ExpertFonctionsService>();
 
+builder.Services.AddScoped<TenantService>();
+builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
-builder.Services.Configure<CloudinarySettings>(
-    builder.Configuration.GetSection("CloudinarySettings"));
-// --------------------------
-// CONTROLLERS
-// --------------------------
-builder.Services
-    .AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters
-            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-    });
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddSingleton<EmailQueueService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
 
-// --------------------------
-// BUILD APP
-// --------------------------
 var app = builder.Build();
-
-
-
-
-
 
 if (app.Environment.IsDevelopment())
 {
@@ -154,37 +112,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-
 app.UseCors("AllowFrontend");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
-
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
     RequestPath = ""
 });
-
-
-app.MapGet("/health", () => Results.Ok(new
-{
-    Status = "Healthy",
-    Timestamp = DateTime.UtcNow
-}));
-
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
 app.MapControllers();
-
-
-app.Lifetime.ApplicationStarted.Register(() =>
-{
-    foreach (var url in app.Urls)
-    {
-        Console.WriteLine($"Application running on: {url}");
-    }
-});
-
 app.Run();

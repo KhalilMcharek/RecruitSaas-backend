@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Models;
+using BC = BCrypt.Net.BCrypt;
 
 namespace Recrutement_api.Services
 {
@@ -45,8 +46,22 @@ namespace Recrutement_api.Services
 
         public bool VerifyPassword(string password, string hash)
         {
-            var result = _passwordHasher.VerifyHashedPassword(null, hash, password);
-            return result == PasswordVerificationResult.Success;
+            // BCrypt — utilisé pour les experts invités
+            if (!string.IsNullOrEmpty(hash) &&
+                (hash.StartsWith("$2a$") || hash.StartsWith("$2b$") || hash.StartsWith("$2y$")))
+            {
+                try { return BC.Verify(password, hash); }
+                catch { return false; }
+            }
+
+            // ASP.NET Identity PasswordHasher — utilisé pour candidats/tenants/admin
+            try
+            {
+                var result = _passwordHasher.VerifyHashedPassword(null, hash, password);
+                return result == PasswordVerificationResult.Success
+                    || result == PasswordVerificationResult.SuccessRehashNeeded;
+            }
+            catch { return false; }
         }
 
         // ============================
@@ -66,25 +81,24 @@ namespace Recrutement_api.Services
 
             var user = new Utilisateur
             {
-                Id = Guid.NewGuid(),
-                Email = dto.Email,
-                Nom = dto.Nom,
-                Prenom = string.Empty,
+                Id             = Guid.NewGuid(),
+                Email          = dto.Email,
+                Nom            = dto.Nom,
+                Prenom         = string.Empty,
                 MotDePasseHash = HashPassword(dto.MotDePasse),
-                Role = RoleUtilisateur.Candidat,
-                CreeLe = DateTime.UtcNow
+                Role           = RoleUtilisateur.Candidat,
+                CreeLe         = DateTime.UtcNow
             };
             await _context.Utilisateurs.AddAsync(user);
             await _context.SaveChangesAsync();
 
             var candidat = new Candidat
             {
-                Id = Guid.NewGuid(),
+                Id            = Guid.NewGuid(),
                 UtilisateurId = user.Id,
-                Telephone = string.Empty,
-                CreeLe = DateTime.UtcNow
+                Telephone     = string.Empty,
+                CreeLe        = DateTime.UtcNow
             };
-
             await _context.Candidats.AddAsync(candidat);
             await _context.SaveChangesAsync();
 
@@ -109,37 +123,37 @@ namespace Recrutement_api.Services
 
             var user = new Utilisateur
             {
-                Id = Guid.NewGuid(),
-                Email = dto.WorkEmail,
-                Nom = dto.TenantName,
-                Prenom = string.Empty,
-                Role = RoleUtilisateur.Tenant,
+                Id             = Guid.NewGuid(),
+                Email          = dto.WorkEmail,
+                Nom            = dto.TenantName,
+                Prenom         = string.Empty,
+                Role           = RoleUtilisateur.Tenant,
                 MotDePasseHash = HashPassword(dto.Password),
-                CreeLe = DateTime.UtcNow
+                CreeLe         = DateTime.UtcNow
             };
             await _context.Utilisateurs.AddAsync(user);
             await _context.SaveChangesAsync();
 
             var tenant = new Tenant
             {
-                Id = Guid.NewGuid(),
+                Id            = Guid.NewGuid(),
                 UtilisateurId = user.Id,
-                Statut = TenantStatus.Pending,
-                CreeLe = DateTime.UtcNow
+                Statut        = TenantStatus.Pending,
+                CreeLe        = DateTime.UtcNow
             };
             await _context.Tenants.AddAsync(tenant);
             await _context.SaveChangesAsync();
 
             var entreprise = new Entreprise
             {
-                Id = Guid.NewGuid(),
-                Nom = dto.CompanyName,
-                RNE = dto.RNE,
-                Secteur = dto.Industry,
+                Id          = Guid.NewGuid(),
+                Nom         = dto.CompanyName,
+                RNE         = dto.RNE,
+                Secteur     = dto.Industry,
                 Description = string.Empty,
-                LogoUrl = string.Empty,
-                TenantId = tenant.Id,
-                CreeLe = DateTime.UtcNow
+                LogoUrl     = string.Empty,
+                TenantId    = tenant.Id,
+                CreeLe      = DateTime.UtcNow
             };
             await _context.Entreprises.AddAsync(entreprise);
             await _context.SaveChangesAsync();
@@ -159,13 +173,21 @@ namespace Recrutement_api.Services
             var user = await _context.Utilisateurs
                 .FirstOrDefaultAsync(u => u.Email == dto.Email);
 
-            if (user == null ||
-                !VerifyPassword(dto.MotDePasse, user.MotDePasseHash))
+            if (user == null || !VerifyPassword(dto.MotDePasse, user.MotDePasseHash))
                 throw new Exception("Incorrect email or password.");
 
-            Guid? tenantId = null;
-            Guid? expertId = null;
+            Guid? tenantId  = null;
+            Guid? expertId  = null;
             Guid? candidatId = null;
+
+            // ================================
+            // Admin
+            // ================================
+            if (user.Role == RoleUtilisateur.Admin)
+            {
+                var adminToken = _jwtService.GenerateToken(user, null, null, null);
+                return new AuthResponseDto { Token = adminToken, UserName = user.Nom };
+            }
 
             // ================================
             // Tenant validation
@@ -215,16 +237,11 @@ namespace Recrutement_api.Services
             // ================================
             // Generate JWT
             // ================================
-            var token = _jwtService.GenerateToken(
-                user,
-                tenantId,
-                expertId,
-                candidatId
-            );
+            var token = _jwtService.GenerateToken(user, tenantId, expertId, candidatId);
 
             return new AuthResponseDto
             {
-                Token = token,
+                Token    = token,
                 UserName = user.Nom
             };
         }
