@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
@@ -62,6 +64,41 @@ namespace Recrutement_api.Controllers
             }
         }
 
-        
+        // ── Changer le mot de passe (Expert + tous les rôles) ──────────
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            try
+            {
+                // Lire l'userId depuis le token JWT
+                var userIdStr = User.FindFirstValue("userId")
+                             ?? User.FindFirstValue("sub")
+                             ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (string.IsNullOrEmpty(userIdStr))
+                    return Unauthorized(new { message = "Token invalide." });
+
+                var userId = Guid.Parse(userIdStr);
+
+                var user = await _context.Utilisateurs.FindAsync(userId);
+                if (user == null)
+                    return NotFound(new { message = "Utilisateur introuvable." });
+
+                // Vérifier l'ancien mot de passe
+                if (!_authService.VerifyPassword(dto.AncienMotDePasse, user.MotDePasseHash))
+                    return BadRequest(new { message = "Mot de passe actuel incorrect." });
+
+                // Mettre à jour
+                user.MotDePasseHash = _authService.HashPassword(dto.NouveauMotDePasse);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Mot de passe mis à jour avec succès." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
     }
 }

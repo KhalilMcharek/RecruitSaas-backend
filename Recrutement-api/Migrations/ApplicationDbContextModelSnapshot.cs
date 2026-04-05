@@ -587,7 +587,7 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
-                        .WithMany("Entretiens")
+                        .WithMany()
                         .HasForeignKey("CandidatureId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -670,8 +670,6 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Avis");
-
-                    b.Navigation("Entretiens");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>

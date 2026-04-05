@@ -91,7 +91,8 @@ builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
-//builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Implementations.ExpertService>();
+builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Expert.Implementations.ExpertFonctionsService>();
+
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<CandidatureService>();
