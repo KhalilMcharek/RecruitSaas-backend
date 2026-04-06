@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
@@ -47,5 +48,24 @@ namespace Recrutement_api.Controllers
             var stats = await _candidatureService.GetStatsAsync();
             return Ok(stats);
         }
-    }
-}
+
+[HttpGet("mes-candidatures")]
+        public async Task<IActionResult> GetMesCandidatures()
+        {
+            // Debug : afficher tous les claims pour diagnostic
+            foreach (var claim in User.Claims)
+                Console.WriteLine($"[JWT CLAIM] {claim.Type} = {claim.Value}");
+ 
+            var candidatIdStr = User.FindFirstValue("candidatId");
+            Console.WriteLine($"[mes-candidatures] candidatId = {candidatIdStr}");
+ 
+            if (string.IsNullOrEmpty(candidatIdStr))
+                return Unauthorized(new { message = "candidatId manquant dans le token. Vérifiez la génération du JWT." });
+ 
+            if (!Guid.TryParse(candidatIdStr, out var candidatId))
+                return BadRequest(new { message = "candidatId invalide dans le token." });
+ 
+            var result = await _candidatureService.GetMesCandidaturesDirectAsync(candidatId);
+            return Ok(result);
+        }
+    }}

@@ -156,5 +156,122 @@ namespace Recrutement_api.Controllers
 
             return Ok(new { success = true, message, data });
         }
+        
+
+
+
+
+
+        [HttpGet("profile")]
+public async Task<IActionResult> GetProfile()
+{
+    var tenantId = await GetCurrentTenantIdAsync();
+    if (tenantId == null)
+        return Unauthorized(new { success = false });
+
+    var folder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "DataProfile");
+    var filePath = Path.Combine(folder, $"{tenantId}.json");
+
+    if (!System.IO.File.Exists(filePath))
+    {
+        return Ok(new { success = true, data = new { } });
+    }
+
+    var json = await System.IO.File.ReadAllTextAsync(filePath);
+
+    return Ok(new
+    {
+        success = true,
+        data = System.Text.Json.JsonSerializer.Deserialize<object>(json)
+    });
+}
+
+
+
+
+
+[HttpPut("profile")]
+public async Task<IActionResult> UpdateProfile(
+    [FromForm] UpdateTenantProfileDto dto,
+    IFormFile? logo)
+{
+    var tenantId = await GetCurrentTenantIdAsync();
+    if (tenantId == null)
+        return Unauthorized(new { success = false });
+
+    string? logoUrl = null;
+
+    // =========================
+    // IMAGE UPLOAD
+    // =========================
+    if (logo != null && logo.Length > 0)
+    {
+        var imgFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagesProfile");
+
+        if (!Directory.Exists(imgFolder))
+            Directory.CreateDirectory(imgFolder);
+
+        var fileName = $"{tenantId}_{Guid.NewGuid()}{Path.GetExtension(logo.FileName)}";
+        var filePath = Path.Combine(imgFolder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await logo.CopyToAsync(stream);
+        }
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        logoUrl = $"{baseUrl}/ImagesProfile/{fileName}";
+    }
+
+    // =========================
+    // BUILD JSON OBJECT
+    // =========================
+    var profileData = new
+    {
+        dto.CompanyName,
+        dto.Industry,
+        dto.CompanySize,
+        dto.Location,
+        dto.Description,
+
+        dto.Website,
+        dto.Linkedin,
+        dto.Twitter,
+        dto.HiringStatus,
+
+        dto.FullName,
+        dto.Email,
+        dto.JobTitle,
+        dto.Phone,
+
+        LogoUrl = logoUrl
+    };
+
+    // =========================
+    // SAVE JSON
+    // =========================
+    var folder = Path.Combine(Directory.GetCurrentDirectory(), "Data", "TenantProfiles");
+
+    if (!Directory.Exists(folder))
+        Directory.CreateDirectory(folder);
+
+    var jsonPath = Path.Combine(folder, $"{tenantId}.json");
+
+    var json = System.Text.Json.JsonSerializer.Serialize(profileData, new System.Text.Json.JsonSerializerOptions
+    {
+        WriteIndented = true
+    });
+
+    await System.IO.File.WriteAllTextAsync(jsonPath, json);
+
+    return Ok(new
+    {
+        success = true,
+        message = "Profile saved successfully",
+        data = profileData
+    });
+}
+
+
     }
 }
