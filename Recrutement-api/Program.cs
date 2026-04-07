@@ -5,6 +5,7 @@ using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services;
+using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.Expert;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
@@ -102,6 +103,8 @@ builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
+builder.Services.AddSingleton<TenantProfileFileService>();
+builder.Services.AddSingleton<CandidateProfileFileService>(); 
 
 var app = builder.Build();
 
