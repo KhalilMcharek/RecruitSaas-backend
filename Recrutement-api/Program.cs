@@ -104,7 +104,8 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
 builder.Services.AddSingleton<TenantProfileFileService>();
-builder.Services.AddSingleton<CandidateProfileFileService>(); 
+builder.Services.AddSingleton<CandidateProfileFileService>();
+builder.Services.AddScoped<IExpertService, ExpertUserService>();
 
 var app = builder.Build();
 

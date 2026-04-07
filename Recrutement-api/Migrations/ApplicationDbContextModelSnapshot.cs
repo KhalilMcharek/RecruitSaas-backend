@@ -320,6 +320,9 @@ namespace Recrutement_api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
                     b.Property<string>("Poste")
                         .HasColumnType("text");
 
@@ -472,6 +475,10 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Telephone")
                         .IsRequired()
                         .HasColumnType("text");
 

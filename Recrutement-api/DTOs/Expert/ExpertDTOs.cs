@@ -58,6 +58,9 @@ public class ExpertResponseDto
     public bool IsActive { get; set; }
     public bool IsInvited { get; set; }
     public string CompanyName { get; set; } = string.Empty;
+    public string? Poste { get; set; }        
+    public Guid? OffreId { get; set; }        
+    public string? OffreTitre { get; set; }  
 }
 
 public class ExpertListResponseDto
@@ -67,4 +70,27 @@ public class ExpertListResponseDto
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalPages { get; set; }
+}
+public class AssignOffreDto
+{
+    public Guid? OffreId { get; set; }
+    public string? Poste { get; set; }
+}
+public class UpdateProfilExpertDto
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName  { get; set; } = string.Empty;
+    public string Email     { get; set; } = string.Empty;
+    public string? Phone    { get; set; }
+    public string? Specialty { get; set; }
+}
+
+public class ProfilExpertDto
+{
+    public Guid   Id        { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName  { get; set; } = string.Empty;
+    public string Email     { get; set; } = string.Empty;
+    public string? Phone    { get; set; }
+    public string? Specialty { get; set; }
 }

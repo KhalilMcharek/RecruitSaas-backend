@@ -198,4 +198,27 @@ public class ExpertFonctionsController : ControllerBase
         }
         catch { return "application/octet-stream"; }
     }
+    // GET /api/expert/{expertId}/profil
+    [HttpGet("{expertId}/profil")]
+    public async Task<IActionResult> GetProfil(Guid expertId)
+    {
+        try
+        {
+            var expert = await _expertService.GetProfilAsync(expertId);
+            return Ok(expert);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    // PUT /api/expert/{expertId}/profil
+    [HttpPut("{expertId}/profil")]
+    public async Task<IActionResult> UpdateProfil(Guid expertId, [FromBody] UpdateProfilExpertDto dto)
+    {
+        try
+        {
+            var result = await _expertService.UpdateProfilAsync(expertId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
 }

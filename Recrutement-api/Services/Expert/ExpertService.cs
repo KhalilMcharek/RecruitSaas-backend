@@ -59,7 +59,8 @@ public class ExpertService
             Role = RoleUtilisateur.Expert,
             MotDePasseHash = BC.HashPassword(tempPassword),
             EstActif = true,
-            CreeLe = DateTime.UtcNow
+            CreeLe = DateTime.UtcNow,
+            Telephone      = "" 
         };
 
         _context.Utilisateurs.Add(utilisateur);
@@ -109,9 +110,11 @@ public class ExpertService
             throw new KeyNotFoundException("Entreprise introuvable ou accès refusé.");
 
         var query = _context.Experts
-            .Include(e => e.Company)
-            .Include(e => e.Utilisateur)
-            .Where(e => e.CompanyId == companyId && e.TenantId == tenantId);
+    .Include(e => e.Company)
+    .Include(e => e.Utilisateur)
+    .Include(e => e.Assignations)
+        .ThenInclude(a => a.Offre)
+    .Where(e => e.CompanyId == companyId && e.TenantId == tenantId);
 
         if (filter.IsActive.HasValue)
             query = query.Where(u => u.IsActive == filter.IsActive.Value);
@@ -127,20 +130,19 @@ public class ExpertService
 
         int total = await query.CountAsync();
 
-        var items = await query
-            .OrderBy(u => u.LastName)
-            .Skip((filter.Page - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .Select(u => new ExpertResponseDto
-            {
-                Id = u.Id,
-                FullName = $"{u.FirstName} {u.LastName}",
-                Email = u.Email,
-                IsActive = u.IsActive,
-                IsInvited = u.IsInvited,
-                CompanyName = company.Nom
-            })
-            .ToListAsync();
+        var expertsList = await query
+    .OrderBy(u => u.LastName)
+    .Skip((filter.Page - 1) * filter.PageSize)
+    .Take(filter.PageSize)
+    .ToListAsync();
+
+var items = expertsList.Select(u =>
+{
+    var lastAssignation = u.Assignations
+        .OrderByDescending(a => a.AssigneLe)
+        .FirstOrDefault();
+    return ToDto(u, lastAssignation);
+}).ToList();
 
         return new ExpertListResponseDto
         {
@@ -239,15 +241,18 @@ public class ExpertService
         await _context.SaveChangesAsync();
     }
 
-    private static ExpertResponseDto ToDto(Expert e) => new()
-    {
-        Id = e.Id,
-        FullName = $"{e.FirstName} {e.LastName}",
-        Email = e.Email,
-        IsActive = e.IsActive,
-        IsInvited = e.IsInvited,
-        CompanyName = e.Company?.Nom ?? ""
-    };
+    private static ExpertResponseDto ToDto(Expert e, AssignationExpert? assignation = null) => new()
+{
+    Id = e.Id,
+    FullName = $"{e.FirstName} {e.LastName}",
+    Email = e.Email,
+    IsActive = e.IsActive,
+    IsInvited = e.IsInvited,
+    CompanyName = e.Company?.Nom ?? "",
+    Poste = e.Poste,
+    OffreId = assignation?.OffreId,
+    OffreTitre = assignation?.Offre?.Titre
+};
 
     private static string GenerateTempPassword()
     {
@@ -258,4 +263,100 @@ public class ExpertService
             .Select(_ => chars[random.Next(chars.Length)])
             .ToArray());
     }
+    // 8. ASSIGNER / DÉSASSIGNER une offre
+public async Task<ExpertResponseDto> AssignOffreAsync(Guid expertId, AssignOffreDto dto, Guid userOrTenantId)
+{
+    var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+
+    var expert = await _context.Experts
+        .Include(e => e.Company)
+        .Include(e => e.Assignations)
+            .ThenInclude(a => a.Offre)
+        .FirstOrDefaultAsync(e => e.Id == expertId && e.TenantId == tenantId)
+        ?? throw new KeyNotFoundException("Expert introuvable");
+
+    // Mettre à jour le poste si fourni
+    if (!string.IsNullOrWhiteSpace(dto.Poste))
+        expert.Poste = dto.Poste;
+
+    // Gérer l'assignation
+    if (dto.OffreId.HasValue)
+    {
+        // Vérifier que l'offre appartient au tenant
+       var offre = await _context.OffresEmploi
+    .Include(o => o.Entreprise)
+    .FirstOrDefaultAsync(o => o.Id == dto.OffreId.Value && o.Entreprise.TenantId == tenantId)
+    ?? throw new KeyNotFoundException("Offre introuvable ou accès refusé.");
+
+        // Vérifier si déjà assigné à cette offre
+        bool dejaAssigne = expert.Assignations
+            .Any(a => a.OffreId == dto.OffreId.Value);
+
+        if (!dejaAssigne)
+        {
+            var assignation = new AssignationExpert
+            {
+                Id = Guid.NewGuid(),
+                ExpertId = expertId,
+                OffreId = dto.OffreId.Value,
+                AssigneLe = DateTime.UtcNow
+            };
+            _context.AssignationsExperts.Add(assignation);
+        }
+    }
+    else
+    {
+        // Désassigner : supprimer toutes les assignations
+        var assignations = expert.Assignations.ToList();
+        _context.AssignationsExperts.RemoveRange(assignations);
+    }
+
+    await _context.SaveChangesAsync();
+
+    // Recharger pour avoir les données fraîches
+    await _context.Entry(expert).Collection(e => e.Assignations).LoadAsync();
+    foreach (var a in expert.Assignations)
+        await _context.Entry(a).Reference(x => x.Offre).LoadAsync();
+
+    var lastAssignation = expert.Assignations
+        .OrderByDescending(a => a.AssigneLe)
+        .FirstOrDefault();
+
+    return ToDto(expert, lastAssignation);
+}
+    public async Task SoumettreAvisAsync(Guid expertId, SoumettreAvisDto dto)
+{
+    // Vérifier que la candidature appartient à une offre assignée à cet expert
+    bool estAssigne = await _context.AssignationsExperts
+        .AnyAsync(a => a.ExpertId == expertId &&
+                       _context.Candidatures
+                           .Any(c => c.Id == dto.CandidatureId && c.OffreId == a.OffreId));
+
+    if (!estAssigne)
+        throw new UnauthorizedAccessException("Accès refusé à cette candidature.");
+
+    var avisExistant = await _context.AvisExperts
+        .FirstOrDefaultAsync(a => a.ExpertId == expertId
+                               && a.CandidatureId == dto.CandidatureId);
+
+    if (avisExistant != null)
+    {
+        avisExistant.Score       = dto.Score;
+        avisExistant.Commentaire = dto.Commentaire;
+    }
+    else
+    {
+        _context.AvisExperts.Add(new AvisExpert
+        {
+            Id            = Guid.NewGuid(),
+            ExpertId      = expertId,
+            CandidatureId = dto.CandidatureId,
+            Score         = dto.Score,
+            Commentaire   = dto.Commentaire,
+            CreeLe        = DateTime.UtcNow
+        });
+    }
+
+    await _context.SaveChangesAsync();
+     }
 }

@@ -1,9 +1,11 @@
 namespace Recrutement_api.Controllers;
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs.Expert;
 using Recrutement_api.Services.Expert;
+using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/tenant")]
@@ -11,6 +13,7 @@ using Recrutement_api.Services.Expert;
 public class ExpertController : ControllerBase
 {
     private readonly ExpertService _service;
+
     public ExpertController(ExpertService service) => _service = service;
 
     private Guid GetTenantId()
@@ -77,5 +80,49 @@ public class ExpertController : ControllerBase
     {
         await _service.DeleteExpertAsync(id, GetTenantId());
         return NoContent();
+    }
+
+    [HttpPut("experts/{id}/assign-offre")]
+    public async Task<IActionResult> AssignOffre(Guid id, [FromBody] AssignOffreDto dto)
+    {
+        try
+        {
+            var result = await _service.AssignOffreAsync(id, dto, GetTenantId());
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("offres-disponibles")]
+    public async Task<IActionResult> GetOffresDisponibles(
+        [FromServices] Recrutement_api.Data.ApplicationDbContext context)
+    {
+        var tenantId = GetTenantId();
+
+        Guid resolvedTenantId;
+        bool isTenant = await context.Tenants.AnyAsync(t => t.Id == tenantId);
+        if (isTenant)
+        {
+            resolvedTenantId = tenantId;
+        }
+        else
+        {
+            var tenant = await context.Tenants
+                .Where(t => t.UtilisateurId == tenantId)
+                .FirstOrDefaultAsync();
+            if (tenant == null) return Unauthorized();
+            resolvedTenantId = tenant.Id;
+        }
+
+        var offres = await context.OffresEmploi
+            .Include(o => o.Entreprise)
+            .Where(o => o.Entreprise.TenantId == resolvedTenantId)
+            .Select(o => new { o.Id, o.Titre })
+            .ToListAsync();
+
+        return Ok(offres);
     }
 }
