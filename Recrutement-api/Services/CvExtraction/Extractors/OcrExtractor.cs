@@ -35,11 +35,5 @@ namespace Recrutement_api.Services.CvExtraction.Extractors
             return Task.FromResult(resultText.ToString());
         }
 
-        public bool CanHandle(string filePath)
-        {
-            var ext = Path.GetExtension(filePath).ToLower();
-
-            return ext == ".png" || ext == ".jpg" || ext == ".jpeg";
-        }
     }
 }

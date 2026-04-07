@@ -47,7 +47,7 @@
 		<Folder Include="Services\Auth\" />
 		<Folder Include="Services\Admin\" />
 		<Folder Include="Services\Expert\" />
-		<Folder Include="Services\Candidat\" />
+		<Folder Include="Services\CandidatServices\" />
 		<Folder Include="Services\AI\" />
 		<Folder Include="Services\Shared\" />
 	</ItemGroup>

@@ -32,22 +32,18 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Classification")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Competences")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Experience")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Resume")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<float?>("Score")
@@ -351,12 +347,17 @@ namespace Recrutement_api.Migrations
                     b.Property<bool>("EstPublie")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LienPublic")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsPublicLinkEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Localisation")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PublicLinkExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublicToken")
                         .HasColumnType("text");
 
                     b.Property<string>("Titre")
@@ -541,7 +542,7 @@ namespace Recrutement_api.Migrations
             modelBuilder.Entity("Recrutement_api.Models.EntretienIA", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
-                        .WithMany("Entretiens")
+                        .WithMany()
                         .HasForeignKey("CandidatureId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -612,8 +613,6 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Avis");
-
-                    b.Navigation("Entretiens");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Entreprise", b =>

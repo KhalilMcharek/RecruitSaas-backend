@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
-using Hangfire;
-using Hangfire.PostgreSql;
+
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
@@ -60,23 +59,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     )
 );
 
-// Configuration Hangfire
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(builder.Configuration.GetConnectionString("DefaultConnection"))));
 
-builder.Services.AddHangfireServer();
 
 // Services d'extraction de CV
 builder.Services.AddHttpClient(); // Requis par CvParserService
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
-builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvParserService, Recrutement_api.Services.CvExtraction.CvParserService>();
-builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.CvBackgroundProcessingService>();
-
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
 // =============================
 // SERVICES
 // =============================
@@ -139,6 +129,8 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
 
+builder.Services.AddScoped<Recrutement_api.Services.CandidatServices.ICandidatService, Recrutement_api.Services.CandidatServices.CandidatService>();
+
 builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.Configure<CloudinarySettings>(
@@ -178,7 +170,7 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseHangfireDashboard("/hangfire");
+
 
 
 app.UseStaticFiles(new StaticFileOptions

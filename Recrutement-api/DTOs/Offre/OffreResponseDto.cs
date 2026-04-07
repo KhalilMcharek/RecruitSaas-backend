@@ -16,8 +16,11 @@ namespace Recrutement_api.DTOs.Offre
         public string Localisation { get; set; }
 
         public bool EstPublie { get; set; }
-
-        public string LienPublic { get; set; }
+        public bool IsPublicLinkEnabled { get; set; }
+        public string? PublicToken { get; set; }
+        public string? LienPublic { get; set; }
+        public DateTime? PublicLinkExpiresAt { get; set; }
+        public int NombreCandidats { get; set; }
 
         public DateTime CreeLe { get; set; }
 
