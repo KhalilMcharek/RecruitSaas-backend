@@ -30,7 +30,8 @@ namespace Recrutement_api.Services
                     RNE = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.RNE).FirstOrDefault(),
                     Owner = t.Utilisateur != null ? t.Utilisateur.Nom : null,
                     Industry = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.Secteur).FirstOrDefault(),
-                    Status = t.Statut.ToString()   // enum → string pour le DTO
+                    Status = t.Statut.ToString(),
+                    LogoUrl = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.LogoUrl).FirstOrDefault()
                 })
                 .ToListAsync();
         }
@@ -60,7 +61,7 @@ namespace Recrutement_api.Services
                 Industry = entreprise.Secteur,
                 Description = entreprise.Description,
                 LogoUrl = entreprise.LogoUrl,
-                Status = entreprise.Tenant?.Statut.ToString(),  // enum → string
+                Status = entreprise.Tenant?.Statut.ToString(),
                 CreatedAt = entreprise.CreeLe
             };
         }
@@ -130,14 +131,24 @@ namespace Recrutement_api.Services
         // ============================================================
         public async Task<object> GetDashboardStatsAsync()
         {
+            var today = DateTime.UtcNow.Date;
+
             var tenants = await _context.Tenants.ToListAsync();
+
+            var totalJobs = await _context.OffresEmploi.CountAsync();
+
+            // ✅ Corrigé : CreeLe est DateTime (non-nullable), pas besoin de .HasValue/.Value
+            var newTenantsToday = await _context.Tenants
+                .CountAsync(t => t.CreeLe.Date == today);
 
             return new
             {
                 total = tenants.Count,
                 pending = tenants.Count(t => t.Statut == TenantStatus.Pending),
                 approved = tenants.Count(t => t.Statut == TenantStatus.Approved),
-                rejected = tenants.Count(t => t.Statut == TenantStatus.Rejected)
+                rejected = tenants.Count(t => t.Statut == TenantStatus.Rejected),
+                totalJobs,
+                newTenantsToday
             };
         }
     }
