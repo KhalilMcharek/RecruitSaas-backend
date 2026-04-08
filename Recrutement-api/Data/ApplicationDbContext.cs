@@ -24,6 +24,8 @@ namespace Recrutement_api.Data
         public DbSet<ChampPersonnalise>     ChampsPersonnalises    { get; set; }
         public DbSet<AnalyseCV>             AnalysesCV             { get; set; }
         public DbSet<EntretienIA>           EntretiensIA           { get; set; }
+        public DbSet<CandidateProfile> CandidateProfiles { get; set; }
+        public DbSet<TenantProfile>    TenantProfiles     { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -98,6 +100,29 @@ namespace Recrutement_api.Data
     .WithMany(e => e.Assignations)
     .HasForeignKey(a => a.ExpertId)
     .OnDelete(DeleteBehavior.Cascade);
+    // 2) Dans OnModelCreating, ajouter à la fin (avant la dernière accolade) :
+ 
+// CandidateProfile — relation 1-1 avec Candidat
+modelBuilder.Entity<CandidateProfile>()
+    .HasOne(p => p.Candidat)
+    .WithOne()
+    .HasForeignKey<CandidateProfile>(p => p.CandidatId)
+    .OnDelete(DeleteBehavior.Cascade);
+ 
+modelBuilder.Entity<CandidateProfile>()
+    .HasIndex(p => p.CandidatId)
+    .IsUnique();
+ 
+// TenantProfile — relation 1-1 avec Tenant
+modelBuilder.Entity<TenantProfile>()
+    .HasOne(p => p.Tenant)
+    .WithOne()
+    .HasForeignKey<TenantProfile>(p => p.TenantId)
+    .OnDelete(DeleteBehavior.Cascade);
+ 
+modelBuilder.Entity<TenantProfile>()
+    .HasIndex(p => p.TenantId)
+    .IsUnique();
 
 modelBuilder.Entity<AvisExpert>()
     .HasOne(a => a.Expert)
