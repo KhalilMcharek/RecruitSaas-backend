@@ -103,8 +103,8 @@ builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
-builder.Services.AddSingleton<TenantProfileFileService>();
-builder.Services.AddSingleton<CandidateProfileFileService>(); 
+builder.Services.AddScoped<CandidateProfileService>();
+builder.Services.AddScoped<TenantProfileService>();
 
 var app = builder.Build();
 
