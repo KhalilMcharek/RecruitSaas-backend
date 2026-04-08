@@ -351,10 +351,10 @@ namespace Recrutement_api.Services
                 .Select(e => new ExpertDto
                 {
                     Id = e.Id,
-                    UtilisateurId = e.UtilisateurId,
-                    Nom = e.Utilisateur.Nom,
-                    EntrepriseId = e.EntrepriseId,
-                    NomEntreprise = e.Entreprise.Nom,
+                    UtilisateurId = e.UtilisateurId ?? Guid.Empty,  
+                    Nom = e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty,
+                    EntrepriseId = e.EntrepriseId ?? Guid.Empty,    
+                    NomEntreprise = e.Entreprise != null ? e.Entreprise.Nom : string.Empty,
                     Poste = e.Poste
                 })
                 .Take(10)

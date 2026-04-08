@@ -1,0 +1,22 @@
+{
+  "CompanyName": null,
+  "Industry": null,
+  "CompanySize": null,
+  "Location": null,
+  "Description": null,
+  "Website": "wuwuwueewru",
+  "Linkedin": "sdgfiusfusf",
+  "Twitter": "sfgtsufuewf",
+  "HiringStatus": "actively",
+  "FullName": "Rabii",
+  "Email": "rabii@gmail.com",
+  "JobTitle": "HR",
+  "Phone": "12345678",
+  "WorkTypes": [
+    "Full-time"
+  ],
+  "TechStack": [],
+  "LogoUrl": "http://localhost:5202/ImagesProfile/c78a62d7-3783-45b7-98a5-46b5d0bf5da8_fd1d55d7-c603-4df5-9c6f-97fc6b37a1fa.jfif",
+  "ActiveJobs": 0,
+  "TotalHires": 0
+}

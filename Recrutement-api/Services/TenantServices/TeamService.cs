@@ -19,15 +19,12 @@ namespace Recrutement_api.Services.TenantServices
             _authService = authService;
         }
 
-        /// <summary>
-        /// Retourne les experts du tenant avec filtrage optionnel par entreprise et recherche par nom/poste.
-        /// </summary>
         public async Task<List<ExpertDto>> GetExpertsAsync(Guid? entrepriseId, string? search)
         {
             var tenantId = _currentUser.TenantId;
 
             var query = _context.Experts
-                .Where(e => e.Entreprise.TenantId == tenantId)
+                .Where(e => e.Entreprise != null && e.Entreprise.TenantId == tenantId)
                 .AsQueryable();
 
             if (entrepriseId.HasValue)
@@ -37,40 +34,37 @@ namespace Recrutement_api.Services.TenantServices
             {
                 var term = search.Trim().ToLower();
                 query = query.Where(e =>
-                    e.Utilisateur.Nom.ToLower().Contains(term) ||
-                    e.Poste.ToLower().Contains(term));
+                    (e.Utilisateur != null && e.Utilisateur.Nom.ToLower().Contains(term)) ||
+                    (e.Poste != null && e.Poste.ToLower().Contains(term)));
             }
 
             return await query
-                .OrderBy(e => e.Utilisateur.Nom)
+                .OrderBy(e => e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty)
                 .Select(e => new ExpertDto
                 {
                     Id = e.Id,
-                    UtilisateurId = e.UtilisateurId,
-                    Nom = e.Utilisateur.Nom,
-                    EntrepriseId = e.EntrepriseId,
-                    NomEntreprise = e.Entreprise.Nom,
+                    UtilisateurId = e.UtilisateurId ?? Guid.Empty,
+                    Nom = e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty,
+                    EntrepriseId = e.EntrepriseId ?? Guid.Empty,
+                    NomEntreprise = e.Entreprise != null ? e.Entreprise.Nom : string.Empty,
                     Poste = e.Poste
                 })
                 .ToListAsync();
         }
 
-        /// <summary>
-        /// Retourne un expert par son Id (appartenant au tenant).
-        /// </summary>
         public async Task<ExpertDto> GetExpertByIdAsync(Guid id)
         {
             var tenantId = _currentUser.TenantId;
 
             var expert = await _context.Experts
-                .Where(e => e.Id == id && e.Entreprise.TenantId == tenantId)
+                .Where(e => e.Id == id && e.Entreprise != null && e.Entreprise.TenantId == tenantId)
                 .Select(e => new ExpertDto
                 {
                     Id = e.Id,
-                    UtilisateurId = e.UtilisateurId,
-                    Nom = e.Utilisateur.Nom,
-                    EntrepriseId = e.EntrepriseId,
-                    NomEntreprise = e.Entreprise.Nom,
+                    UtilisateurId = e.UtilisateurId ?? Guid.Empty,
+                    Nom = e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty,
+                    EntrepriseId = e.EntrepriseId ?? Guid.Empty,
+                    NomEntreprise = e.Entreprise != null ? e.Entreprise.Nom : string.Empty,
                     Poste = e.Poste
                 })
                 .FirstOrDefaultAsync();
@@ -81,9 +75,6 @@ namespace Recrutement_api.Services.TenantServices
             return expert;
         }
 
-        /// <summary>
-        /// Crée un nouvel utilisateur puis un expert rattaché à cet utilisateur et à l'entreprise sélectionnée.
-        /// </summary>
         public async Task<ExpertDto> CreateExpertAsync(ExpertCreateDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -94,12 +85,10 @@ namespace Recrutement_api.Services.TenantServices
             if (entreprise == null)
                 throw new Exception("Entreprise introuvable ou non autorisée");
 
-            // 1. Vérifier si l'email existe déjà
             var emailExists = await _context.Utilisateurs.AnyAsync(u => u.Email == dto.Email);
             if (emailExists)
                 throw new Exception("Un utilisateur avec cet email existe déjà.");
 
-            // 2. Créer l'utilisateur
             var utilisateur = new Utilisateur
             {
                 Id = Guid.NewGuid(),
@@ -112,15 +101,16 @@ namespace Recrutement_api.Services.TenantServices
             };
             await _context.Utilisateurs.AddAsync(utilisateur);
 
-            // 3. Créer l'expert
-            var expert = new Expert
-            {
-                Id = Guid.NewGuid(),
-                UtilisateurId = utilisateur.Id,
-                EntrepriseId = dto.EntrepriseId,
-                Poste = dto.Poste,
-                CreeLe = DateTime.UtcNow
-            };
+           var expert = new Recrutement_api.Models.Expert
+{
+    Id = Guid.NewGuid(),
+    UtilisateurId = utilisateur.Id,
+    EntrepriseId = dto.EntrepriseId,
+    CompanyId = dto.EntrepriseId,
+    TenantId = entreprise.TenantId,
+    Poste = dto.Poste,
+    CreeLe = DateTime.UtcNow
+};
 
             _context.Experts.Add(expert);
             await _context.SaveChangesAsync();
@@ -128,17 +118,14 @@ namespace Recrutement_api.Services.TenantServices
             return new ExpertDto
             {
                 Id = expert.Id,
-                UtilisateurId = expert.UtilisateurId,
+                UtilisateurId = expert.UtilisateurId ?? Guid.Empty,
                 Nom = utilisateur.Nom,
-                EntrepriseId = expert.EntrepriseId,
+                EntrepriseId = expert.EntrepriseId ?? Guid.Empty,
                 NomEntreprise = entreprise.Nom,
                 Poste = expert.Poste
             };
         }
 
-        /// <summary>
-        /// Met à jour le poste d'un expert.
-        /// </summary>
         public async Task<ExpertDto> UpdateExpertAsync(Guid id, ExpertUpdateDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -146,7 +133,7 @@ namespace Recrutement_api.Services.TenantServices
             var expert = await _context.Experts
                 .Include(e => e.Utilisateur)
                 .Include(e => e.Entreprise)
-                .FirstOrDefaultAsync(e => e.Id == id && e.Entreprise.TenantId == tenantId);
+                .FirstOrDefaultAsync(e => e.Id == id && e.Entreprise != null && e.Entreprise.TenantId == tenantId);
 
             if (expert == null)
                 throw new Exception("Expert introuvable ou accès non autorisé");
@@ -157,24 +144,21 @@ namespace Recrutement_api.Services.TenantServices
             return new ExpertDto
             {
                 Id = expert.Id,
-                UtilisateurId = expert.UtilisateurId,
-                Nom = expert.Utilisateur.Nom,
-                EntrepriseId = expert.EntrepriseId,
-                NomEntreprise = expert.Entreprise.Nom,
+                UtilisateurId = expert.UtilisateurId ?? Guid.Empty,
+                Nom = expert.Utilisateur != null ? expert.Utilisateur.Nom : string.Empty,
+                EntrepriseId = expert.EntrepriseId ?? Guid.Empty,
+                NomEntreprise = expert.Entreprise != null ? expert.Entreprise.Nom : string.Empty,
                 Poste = expert.Poste
             };
         }
 
-        /// <summary>
-        /// Supprime un expert du tenant.
-        /// </summary>
         public async Task DeleteExpertAsync(Guid id)
         {
             var tenantId = _currentUser.TenantId;
 
             var expert = await _context.Experts
                 .Include(e => e.Entreprise)
-                .FirstOrDefaultAsync(e => e.Id == id && e.Entreprise.TenantId == tenantId);
+                .FirstOrDefaultAsync(e => e.Id == id && e.Entreprise != null && e.Entreprise.TenantId == tenantId);
 
             if (expert == null)
                 throw new Exception("Expert introuvable ou accès non autorisé");
@@ -183,9 +167,6 @@ namespace Recrutement_api.Services.TenantServices
             await _context.SaveChangesAsync();
         }
 
-        /// <summary>
-        /// Retourne la liste des entreprises du tenant (pour le filtrage).
-        /// </summary>
         public async Task<List<Entreprise>> GetEntreprisesAsync()
         {
             var tenantId = _currentUser.TenantId;
