@@ -13,6 +13,11 @@ namespace Recrutement_api.Controllers
     {
         private readonly string _logPath;
        
+        public AdminLogsController()
+        {
+            // Serilog écrit dans "logs/" (voir Program.cs). On normalise ici en chemin absolu.
+            _logPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "logs"));
+        }
 
         //  Liste des fichiers de logs
         [HttpGet]

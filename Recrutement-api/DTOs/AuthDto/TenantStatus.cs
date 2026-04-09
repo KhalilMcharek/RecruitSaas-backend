@@ -4,6 +4,7 @@ namespace Recrutement_api.DTOs
     {
         Pending,    // en attente d'approbation
         Approved,   // accepté
-        Rejected    // refusé
+        Rejected,    // refusé
+        Suspended
     }
 }

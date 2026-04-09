@@ -114,7 +114,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 app.UseStaticFiles();
-app.UseHttpsRedirection();
+// En développement, on garde HTTP (localhost:5202) pour éviter les redirects qui peuvent faire tomber le header Authorization.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
