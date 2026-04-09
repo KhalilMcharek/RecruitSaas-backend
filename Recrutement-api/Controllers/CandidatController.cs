@@ -31,8 +31,22 @@ namespace Recrutement_api.Controllers
         private readonly IOffreService _offreService;
         private readonly IWebHostEnvironment _env;
         private readonly ApplicationDbContext _context;
-        private readonly CandidateProfileFileService _profileService;
         private readonly Cloudinary _cloudinary;
+        private readonly CandidateProfileService _profileService;
+        // Extensions d'images reconnues par Cloudinary nativement
+        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg", "ico", "avif", "heic", "heif"
+        };
+
+        // Extensions qui doivent TOUJOURS être traitées comme raw
+        private static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "pdf", "docx", "doc", "odt", "rtf", "txt",
+            "zip", "rar", "7z", "tar", "gz",
+            "xlsx", "xls", "pptx", "ppt",
+            "csv", "json", "xml"
+        };
 
         public CandidatController(
             ICandidatService candidatService,
@@ -42,8 +56,7 @@ namespace Recrutement_api.Controllers
             IOptions<CloudinarySettings> cloudinaryConfig,
             IOffreService offreService,
             IWebHostEnvironment env,
-            CandidateProfileFileService profileService
-        )
+            CandidateProfileService profileService)  // ← AJOUTÉ pour accès wwwroot
         {
             _candidatService = candidatService;
             _cvExtractionService = cvExtractionService;
@@ -147,147 +160,108 @@ namespace Recrutement_api.Controllers
             return Ok(offre);
         }
 
-        // ─────────────────────────────────────────────
-        // GET PROFILE
-        // ─────────────────────────────────────────────
+        // ═════════════════════════════════════════════════════════
+        // GET /api/candidat/profile
+        // ═════════════════════════════════════════════════════════
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            var candidatId = GetUserIdFromToken();
-            if (candidatId == null)
-                return Unauthorized();
-
-            var profile = await _profileService.GetProfileAsync(candidatId.Value);
-            return Ok(profile);
-        }
-
-        // ─────────────────────────────────────────────
-        // UPDATE PROFILE
-        // ─────────────────────────────────────────────
-        [HttpPut("profile")]
-        public async Task<IActionResult> UpdateProfile([FromForm] UpdateCandidateProfileDto dto, IFormFile? avatar)
-        {
-            var candidatId = GetUserIdFromToken();
-            if (candidatId == null)
+            var userId = GetCandidatIdFromToken();
+            if (userId == null)
                 return Unauthorized(new { success = false, message = "Non autorisé" });
-
-            try
+ 
+            var (success, message, data) = await _profileService.GetProfileAsync(userId.Value);
+ 
+            if (!success)
+                return NotFound(new { success = false, message });
+ 
+            return Ok(new { success = true, data });
+        }
+ 
+        // ═════════════════════════════════════════════════════════
+        // PUT /api/candidat/profile
+        // ═════════════════════════════════════════════════════════
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateProfile(
+            [FromForm] CandidateProfileDto dto,
+            IFormFile? avatar)
+        {
+            var userId = GetCandidatIdFromToken();
+            if (userId == null)
+                return Unauthorized(new { success = false, message = "Non autorisé" });
+ 
+            var (success, message, data) = await _profileService.UpdateProfileAsync(userId.Value, dto, avatar);
+ 
+            if (!success)
+                return BadRequest(new { success = false, message });
+ 
+            return Ok(new { success = true, message, data });
+        }
+        // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+        // GET /api/candidatures/{id}
+        // Retourne le détail d'une candidature pour la vue profil candidat
+        // Accessible par les recruteurs (Tenant) et les experts
+        // ─────────────────────────────────────────────────────────────────────
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.Candidat)
+                    .ThenInclude(c => c.Utilisateur)
+                .FirstOrDefaultAsync(c => c.Id == id);
+ 
+            if (candidature == null)
+                return NotFound(new { message = "Candidature introuvable." });
+ 
+            return Ok(new
             {
-                var profileFolder = Path.Combine(_env.WebRootPath, "data", "candidate-profiles");
-                var imagesFolder = Path.Combine(_env.WebRootPath, "imagesCandidate");
-                var jsonPath = Path.Combine(profileFolder, $"{candidatId}.json");
-
-                // Lire l'existant
-                string? existingAvatarUrl = null;
-                if (System.IO.File.Exists(jsonPath))
-                {
-                    try
-                    {
-                        var raw = await System.IO.File.ReadAllTextAsync(jsonPath);
-                        using var doc = JsonDocument.Parse(raw);
-                        var root = doc.RootElement;
-
-                        if (root.TryGetProperty("avatarUrl", out var av) && av.ValueKind != JsonValueKind.Null)
-                            existingAvatarUrl = av.GetString();
-                    }
-                    catch { /* Ignorer erreurs de parsing */ }
-                }
-
-                // ─────────────────────────────────────────────
-                // Gestion avatar
-                // ─────────────────────────────────────────────
-                string? avatarUrl = existingAvatarUrl; // 👈 IMPORTANT: garder l'ancien par défaut
-
-                if (avatar != null && avatar.Length > 0)
-                {
-                    if (avatar.Length > 5 * 1024 * 1024)
-                        return BadRequest(new { success = false, message = "L'avatar ne doit pas dépasser 5 Mo" });
-
-                    var ext = Path.GetExtension(avatar.FileName).ToLowerInvariant();
-                    var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp", ".svg" };
-                    if (!allowed.Contains(ext))
-                        return BadRequest(new { success = false, message = "Format non supporté" });
-
-                    if (!Directory.Exists(imagesFolder))
-                        Directory.CreateDirectory(imagesFolder);
-
-                    // Supprimer ancien avatar uniquement s'il y en a un
-                    if (!string.IsNullOrEmpty(existingAvatarUrl) && existingAvatarUrl.Contains("/imagesCandidate/"))
-                    {
-                        try
-                        {
-                            var oldFile = Path.GetFileName(new Uri(existingAvatarUrl).LocalPath);
-                            var oldPath = Path.Combine(imagesFolder, oldFile);
-                            if (System.IO.File.Exists(oldPath))
-                            {
-                                System.IO.File.Delete(oldPath);
-                                _logger.LogInformation("✅ Ancien avatar supprimé: {file}", oldFile);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning("⚠️ Erreur suppression ancien avatar: {msg}", ex.Message);
-                        }
-                    }
-
-                    // Sauvegarder nouveau fichier
-                    var fileName = $"{candidatId}_{Guid.NewGuid()}{ext}";
-                    var filePath = Path.Combine(imagesFolder, fileName);
-                    using (var stream = new FileStream(filePath, FileMode.Create))
-                        await avatar.CopyToAsync(stream);
-
-                    // URL relative pour le frontend (IMPORTANT: doit être accessible par UseStaticFiles)
-                    avatarUrl = $"/imagesCandidate/{fileName}";
-                    _logger.LogInformation("✅ Nouvel avatar sauvegardé: {url}", avatarUrl);
-                }
-
-                // ─────────────────────────────────────────────
-                // Construire le profil complet
-                // ─────────────────────────────────────────────
-                var profileData = new
-                {
-                    fullName = dto.FullName ?? "",
-                    email = dto.Email ?? "",
-                    phone = dto.Phone ?? "",
-                    location = dto.Location ?? "",
-                    bio = dto.Bio ?? "",
-                    seeking = dto.Seeking ?? "student",
-                    education = dto.Education ?? "",
-                    fieldOfStudy = dto.FieldOfStudy ?? "",
-                    experience = dto.Experience ?? "",
-                    availability = dto.Availability ?? "",
-                    skills = dto.Skills ?? new List<string>(),
-                    linkedin = dto.Linkedin ?? "",
-                    github = dto.Github ?? "",
-                    portfolioUrl = dto.PortfolioUrl ?? "",
-                    avatarUrl = avatarUrl,  // 👈 CRUCIAL: toujours inclure
-                    updatedAt = DateTime.UtcNow
-                };
-
-                // ─────────────────────────────────────────────
-                // Sauvegarder JSON
-                // ─────────────────────────────────────────────
-                if (!Directory.Exists(profileFolder))
-                    Directory.CreateDirectory(profileFolder);
-
-                var jsonOptions = new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                };
-
-                var json = JsonSerializer.Serialize(profileData, jsonOptions);
-                await System.IO.File.WriteAllTextAsync(jsonPath, json);
-                _logger.LogInformation("✅ Profil sauvegardé: {id}", candidatId);
-
-                return Ok(new { success = true, message = "Profil enregistré", data = profileData });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("❌ UpdateProfile error: {msg}", ex.Message);
-                return StatusCode(500, new { success = false, message = "Erreur serveur", error = ex.Message });
-            }
+                candidature.Id,
+                candidature.Statut,
+                candidature.CvUrl,
+                candidature.CreeLe,
+                candidature.FormulaireResponses,
+ 
+                // Titre de l'offre liée
+                titreOffre = candidature.Offre != null ? candidature.Offre.Titre : null,
+ 
+                // ⚠️ IMPORTANT : on retourne l'UtilisateurId du candidat
+                // C'est ce que le frontend utilise pour appeler GET /api/candidat/{candidatId}/profile
+                candidatId = candidature.Candidat != null
+                                 ? candidature.Candidat.UtilisateurId
+                                 : (Guid?)null,
+            });
+        }
+ 
+        // ─────────────────────────────────────────────────────────────────────
+        // PATCH /api/candidatures/{id}/statut
+        // Met à jour le statut d'une candidature
+        // ─────────────────────────────────────────────────────────────────────
+        [HttpPatch("{id:guid}/statut")]
+        public async Task<IActionResult> UpdateStatut(Guid id, [FromBody] UpdateStatutDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Statut))
+                return BadRequest(new { message = "Statut invalide." });
+ 
+            var allowed = new[] { "Nouvelle", "En cours", "Acceptée", "Refusée" };
+            if (!allowed.Contains(dto.Statut))
+                return BadRequest(new { message = $"Statut non reconnu. Valeurs autorisées : {string.Join(", ", allowed)}" });
+ 
+            var candidature = await _context.Candidatures.FindAsync(id);
+            if (candidature == null)
+                return NotFound(new { message = "Candidature introuvable." });
+ 
+            candidature.Statut = dto.Statut;
+            await _context.SaveChangesAsync();
+ 
+            _logger.LogInformation("✅ Statut candidature {id} → {statut}", id, dto.Statut);
+            return Ok(new { message = "Statut mis à jour.", statut = dto.Statut });
         }
     }
-}
+ 
+    // DTO pour le PATCH statut
+    public class UpdateStatutDto
+    {
+        public string Statut { get; set; } = "";
+    }}
