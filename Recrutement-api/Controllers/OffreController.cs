@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.DTOs.Offre;
@@ -65,6 +65,35 @@ namespace Recrutement_api.Controllers
         {
             var offre = await _offreService.ChangerStatutPublicationAsync(offreId, publier);
             return Ok(offre);
+        }
+
+        [HttpPatch("{offreId}/public-link")]
+        public async Task<IActionResult> TogglePublicLink(Guid offreId, [FromQuery] bool enabled, [FromQuery] DateTime? expiresAt = null)
+        {
+            var offre = await _offreService.TogglePublicLinkAsync(offreId, enabled, expiresAt);
+            return Ok(offre);
+        }
+
+        [HttpPost("{offreId}/regenerate-token")]
+        public async Task<IActionResult> RegenerateToken(Guid offreId)
+        {
+            var offre = await _offreService.RegeneratePublicTokenAsync(offreId);
+            return Ok(offre);
+        }
+
+        [HttpGet("public/{token}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicOffre(string token)
+        {
+            try
+            {
+                var offre = await _offreService.GetPublicOffreByTokenAsync(token);
+                return Ok(offre);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
         [HttpPost("{offreId}/experts")]
         public async Task<IActionResult> AssignerExperts(Guid offreId, [FromBody] AssignationExpertDto dto)

@@ -10,12 +10,12 @@ namespace Recrutement_api.Models
         public Guid CandidatureId { get; set; }
         public Candidature Candidature { get; set; }
 
-        public string TexteExtrait { get; set; }
-        public string Competences { get; set; }
-        public string Experience { get; set; }
-        public string Classification { get; set; }
+        public string TexteExtrait { get; set; } = string.Empty;
+        public string? Competences { get; set; } = string.Empty;
+        public string? Experience { get; set; } = string.Empty;
+        public string? Classification { get; set; } = string.Empty;
         public float? Score { get; set; }
-        public string Resume { get; set; }
+        public string? Resume { get; set; } = string.Empty;
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
     }
