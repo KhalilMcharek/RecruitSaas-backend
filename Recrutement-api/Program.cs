@@ -11,6 +11,7 @@ using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
 using Recrutement_api.Services.TenantServices;
+using Recrutement_api.Services.AI;
 using Serilog;
 using Serilog.Events;
 
@@ -125,6 +126,7 @@ builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
+builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
 
 var app = builder.Build();
 
