@@ -20,4 +20,11 @@ namespace Recrutement_api.DTOs.Tenant
         public List<string> TechStack { get; set; } = new();
         public string? LogoUrl       { get; set; }
     }
-}
+ 
+     public class ChangePasswordDto
+     {
+         public string CurrentPassword { get; set; } = "";
+         public string NewPassword     { get; set; } = "";
+         public string ConfirmPassword { get; set; } = "";
+     }
+ }
