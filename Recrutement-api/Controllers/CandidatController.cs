@@ -166,7 +166,7 @@ namespace Recrutement_api.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            var userId = GetCandidatIdFromToken();
+            var userId = GetUserIdFromToken();
             if (userId == null)
                 return Unauthorized(new { success = false, message = "Non autorisé" });
  
@@ -186,7 +186,7 @@ namespace Recrutement_api.Controllers
             [FromForm] CandidateProfileDto dto,
             IFormFile? avatar)
         {
-            var userId = GetCandidatIdFromToken();
+            var userId = GetUserIdFromToken();
             if (userId == null)
                 return Unauthorized(new { success = false, message = "Non autorisé" });
  
