@@ -111,15 +111,6 @@ namespace Recrutement_api.Controllers
 
             var result = await _candidatService.PostulerAsync(userId.Value, dto);
 
-            try
-            {
-                await _cvExtractionService.ProcessCvAsync(result.CandidatureId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Erreur extraction CV");
-            }
-
             return Ok(result);
         }
 
