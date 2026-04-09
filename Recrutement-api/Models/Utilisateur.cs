@@ -20,7 +20,7 @@ namespace Recrutement_api.Models
         [EmailAddress]
         public string Email { get; set; }
 
-        // Hash du mot de passe
+        
         [Required]
         public string MotDePasseHash { get; set; }
 

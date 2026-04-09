@@ -24,6 +24,7 @@ namespace Recrutement_api.Data
         public DbSet<ChampPersonnalise>     ChampsPersonnalises    { get; set; }
         public DbSet<AnalyseCV>             AnalysesCV             { get; set; }
         public DbSet<EntretienIA>           EntretiensIA           { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

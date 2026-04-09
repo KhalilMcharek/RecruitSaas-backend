@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using CloudinaryDotNet;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Expert;
 using Recrutement_api.Models;
@@ -20,18 +22,21 @@ public class ExpertFonctionsController : ControllerBase
     private readonly Cloudinary _cloudinary;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ExpertFonctionsController> _logger;
+    private readonly ApplicationDbContext _context;
 
     public ExpertFonctionsController(
         IExpertService expertService,
         ICurrentUserService currentUser,
         IOptions<CloudinarySettings> cloudinaryConfig,
         IHttpClientFactory httpClientFactory,
-        ILogger<ExpertFonctionsController> logger)
+        ILogger<ExpertFonctionsController> logger,
+        ApplicationDbContext context)
     {
         _expertService = expertService;
         _currentUser = currentUser;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _context = context;
 
         var account = new Account(
             cloudinaryConfig.Value.CloudName,
@@ -49,10 +54,7 @@ public class ExpertFonctionsController : ControllerBase
             var offres = await _expertService.GetOffresAssigneesAsync(expertId);
             return Ok(offres);
         }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 
     [HttpGet("{expertId}/candidatures")]
@@ -85,12 +87,9 @@ public class ExpertFonctionsController : ControllerBase
     [HttpPost("{expertId}/avis")]
     public async Task<IActionResult> SoumettreAvis(Guid expertId, [FromBody] SoumettreAvisDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
+        if (!ModelState.IsValid) return BadRequest(ModelState);
         if (dto.Score < 0f || dto.Score > 5f)
             return BadRequest(new { message = "Le score doit être compris entre 0 et 5." });
-
         try
         {
             var avis = await _expertService.SoumettreAvisAsync(expertId, dto);
@@ -99,6 +98,44 @@ public class ExpertFonctionsController : ControllerBase
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
+
+    // ── Notifications ──────────────────────────────────────────────
+
+    [HttpGet("{expertId}/notifications/feed")]
+    public async Task<IActionResult> GetNotificationsFeed(Guid expertId)
+    {
+        var notifs = await _context.Notifications
+            .Where(n => n.ExpertId == expertId)
+            .OrderByDescending(n => n.CreeLe)
+            .Take(30)
+            .Select(n => new {
+                id = n.Id.ToString(),
+                type = n.Type,
+                title = n.Title,
+                body = n.Body,
+                creeLe = n.CreeLe,
+                read = n.Read,
+                offreId = n.OffreId,
+                candidatId = n.CandidatId
+            })
+            .ToListAsync();
+
+        return Ok(notifs);
+    }
+
+    [HttpPatch("{expertId}/notifications/{notifId}/read")]
+    public async Task<IActionResult> MarkRead(Guid expertId, Guid notifId)
+    {
+        var n = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.Id == notifId && n.ExpertId == expertId);
+
+        if (n == null) return NotFound();
+        n.Read = true;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Proxy ───────────────────────────────────────────────────────
 
     [HttpGet("proxy")]
     public async Task<IActionResult> ProxyFichier([FromQuery] string url)
@@ -131,25 +168,38 @@ public class ExpertFonctionsController : ControllerBase
         return StatusCode(502, new { message = "Impossible de récupérer le fichier depuis Cloudinary." });
     }
 
+    [HttpGet("{expertId}/profil")]
+    public async Task<IActionResult> GetProfil(Guid expertId)
+    {
+        try
+        {
+            var expert = await _expertService.GetProfilAsync(expertId);
+            return Ok(expert);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [HttpPut("{expertId}/profil")]
+    public async Task<IActionResult> UpdateProfil(Guid expertId, [FromBody] UpdateProfilExpertDto dto)
+    {
+        try
+        {
+            var result = await _expertService.UpdateProfilAsync(expertId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
+
     private static List<(string Url, string Label)> BuildCandidateUrls(string originalUrl)
     {
         var list = new List<(string, string)>();
         list.Add((originalUrl, "original"));
-
         if (originalUrl.Contains("/image/upload/", StringComparison.OrdinalIgnoreCase))
-        {
-            var rawUrl = originalUrl.Replace("/image/upload/", "/raw/upload/",
-                StringComparison.OrdinalIgnoreCase);
-            list.Add((rawUrl, "raw"));
-        }
-
+            list.Add((originalUrl.Replace("/image/upload/", "/raw/upload/", StringComparison.OrdinalIgnoreCase), "raw"));
         if (originalUrl.Contains("/raw/upload/", StringComparison.OrdinalIgnoreCase))
-        {
-            var imageUrl = originalUrl.Replace("/raw/upload/", "/image/upload/",
-                StringComparison.OrdinalIgnoreCase);
-            list.Add((imageUrl, "image"));
-        }
-
+            list.Add((originalUrl.Replace("/raw/upload/", "/image/upload/", StringComparison.OrdinalIgnoreCase), "image"));
         return list;
     }
 
@@ -158,16 +208,9 @@ public class ExpertFonctionsController : ControllerBase
         try
         {
             var response = await client.GetAsync(url);
-            var code = (int)response.StatusCode;
-            _logger.LogInformation("    → HTTP {code}", code);
-
+            _logger.LogInformation("    → HTTP {code}", (int)response.StatusCode);
             if (response.IsSuccessStatusCode)
                 return await response.Content.ReadAsByteArrayAsync();
-
-            var body = await response.Content.ReadAsStringAsync();
-            if (!string.IsNullOrWhiteSpace(body))
-                _logger.LogWarning("    → Body: {body}", body);
-
             return null;
         }
         catch (Exception ex)
@@ -181,8 +224,7 @@ public class ExpertFonctionsController : ControllerBase
     {
         try
         {
-            var ext = System.IO.Path.GetExtension(new Uri(url).AbsolutePath)
-                          .TrimStart('.').ToLowerInvariant();
+            var ext = System.IO.Path.GetExtension(new Uri(url).AbsolutePath).TrimStart('.').ToLowerInvariant();
             return ext switch
             {
                 "pdf" => "application/pdf",
@@ -197,28 +239,5 @@ public class ExpertFonctionsController : ControllerBase
             };
         }
         catch { return "application/octet-stream"; }
-    }
-    // GET /api/expert/{expertId}/profil
-    [HttpGet("{expertId}/profil")]
-    public async Task<IActionResult> GetProfil(Guid expertId)
-    {
-        try
-        {
-            var expert = await _expertService.GetProfilAsync(expertId);
-            return Ok(expert);
-        }
-        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
-    }
-
-    // PUT /api/expert/{expertId}/profil
-    [HttpPut("{expertId}/profil")]
-    public async Task<IActionResult> UpdateProfil(Guid expertId, [FromBody] UpdateProfilExpertDto dto)
-    {
-        try
-        {
-            var result = await _expertService.UpdateProfilAsync(expertId, dto);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 }

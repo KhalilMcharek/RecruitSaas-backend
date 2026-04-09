@@ -2,7 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
-
+using Recrutement_api.DTOs.Candidature;
 
 namespace Recrutement_api.Controllers
 {
@@ -18,10 +18,6 @@ namespace Recrutement_api.Controllers
             _candidatureService = candidatureService;
         }
 
-        /// <summary>
-        /// GET /api/candidatures
-        /// Supports query params: entrepriseId, offreId, statut, scoreMin, scoreMax, dateDebut, dateFin
-        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetCandidatures(
             [FromQuery] Guid? entrepriseId,
@@ -34,14 +30,9 @@ namespace Recrutement_api.Controllers
         {
             var result = await _candidatureService.GetCandidaturesAsync(
                 entrepriseId, nomOffre, statut, scoreMin, scoreMax, dateDebut, dateFin);
-
             return Ok(result);
         }
 
-        /// <summary>
-        /// GET /api/candidatures/stats
-        /// Returns aggregate stats (total, pending, accepted, rejected, avg AI score)
-        /// </summary>
         [HttpGet("stats")]
         public async Task<IActionResult> GetStats()
         {
@@ -49,23 +40,46 @@ namespace Recrutement_api.Controllers
             return Ok(stats);
         }
 
-[HttpGet("mes-candidatures")]
+        [HttpGet("mes-candidatures")]
         public async Task<IActionResult> GetMesCandidatures()
         {
-            // Debug : afficher tous les claims pour diagnostic
             foreach (var claim in User.Claims)
                 Console.WriteLine($"[JWT CLAIM] {claim.Type} = {claim.Value}");
- 
+
             var candidatIdStr = User.FindFirstValue("candidatId");
             Console.WriteLine($"[mes-candidatures] candidatId = {candidatIdStr}");
- 
+
             if (string.IsNullOrEmpty(candidatIdStr))
-                return Unauthorized(new { message = "candidatId manquant dans le token. Vérifiez la génération du JWT." });
- 
+                return Unauthorized(new { message = "candidatId manquant dans le token." });
+
             if (!Guid.TryParse(candidatIdStr, out var candidatId))
                 return BadRequest(new { message = "candidatId invalide dans le token." });
- 
+
             var result = await _candidatureService.GetMesCandidaturesDirectAsync(candidatId);
             return Ok(result);
         }
-    }}
+
+        [HttpPatch("{candidatureId}/statut")]
+        public async Task<IActionResult> ChangerStatut(
+            Guid candidatureId,
+            [FromBody] ChangerStatutDto dto)
+        {
+            var statutsValides = new[]
+            {
+                "Nouvelle", "En cours", "Présélectionné",
+                "Entretien", "Acceptée", "Refusée"
+            };
+
+            if (!statutsValides.Contains(dto.Statut))
+                return BadRequest(new { message = $"Statut invalide. Valeurs acceptées : {string.Join(", ", statutsValides)}" });
+
+            try
+            {
+                var result = await _candidatureService.ChangerStatutAsync(candidatureId, dto.Statut);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+        }
+    }
+}

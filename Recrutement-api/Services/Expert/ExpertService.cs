@@ -326,7 +326,6 @@ public async Task<ExpertResponseDto> AssignOffreAsync(Guid expertId, AssignOffre
 }
     public async Task SoumettreAvisAsync(Guid expertId, SoumettreAvisDto dto)
 {
-    // Vérifier que la candidature appartient à une offre assignée à cet expert
     bool estAssigne = await _context.AssignationsExperts
         .AnyAsync(a => a.ExpertId == expertId &&
                        _context.Candidatures
@@ -358,5 +357,42 @@ public async Task<ExpertResponseDto> AssignOffreAsync(Guid expertId, AssignOffre
     }
 
     await _context.SaveChangesAsync();
-     }
+
+    // ── Notifier les autres experts assignés ──
+    var candidature = await _context.Candidatures
+        .Include(c => c.Candidat).ThenInclude(c => c.Utilisateur)
+        .Include(c => c.Offre)
+        .FirstOrDefaultAsync(c => c.Id == dto.CandidatureId);
+
+    if (candidature != null)
+    {
+        var autresExperts = await _context.AssignationsExperts
+            .Where(a => a.OffreId == candidature.OffreId && a.ExpertId != expertId)
+            .Select(a => a.ExpertId)
+            .ToListAsync();
+
+        var nom = candidature.Candidat?.Utilisateur != null
+            ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
+            : "A candidate";
+
+        var scoreLabel = $"{dto.Score:0.0}/5 ({Math.Round(dto.Score * 20)}% match)";
+
+        foreach (var expId in autresExperts)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                ExpertId   = expId,
+                Type       = "status_updates",
+                Title      = "Candidate evaluated by colleague",
+                Body       = $"{nom} was rated {scoreLabel} on \"{candidature.Offre?.Titre}\"",
+                OffreId    = candidature.OffreId,
+                CandidatId = dto.CandidatureId,
+                CreeLe     = DateTime.UtcNow,
+                Read       = false
+            });
+        }
+
+        await _context.SaveChangesAsync();
+    }
+}
 }
