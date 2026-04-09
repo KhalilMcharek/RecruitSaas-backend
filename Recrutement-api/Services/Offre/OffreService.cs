@@ -112,19 +112,10 @@ namespace Recrutement_api.Services
                 };
             }
 
-            response.Experts = offre.Assignations?.Select(a => new ExpertDto
-            {
-                Id = a.Expert.Id,
-                UtilisateurId = a.Expert.UtilisateurId,
-                Nom = a.Expert.Utilisateur.Nom,
-                EntrepriseId = a.Expert.EntrepriseId,
-                NomEntreprise = offre.Entreprise?.Nom,
-                Poste = a.Expert.Poste
-            }).ToList() ?? new List<ExpertDto>();
+         
 
             return response;
         }
-
         public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(Guid? entrepriseId, string? search, string? filter)
         {
             var tenantId = _currentUser.TenantId;

@@ -61,7 +61,7 @@ builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionSe
 // =============================
 
 // Controllers + JSON
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
