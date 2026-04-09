@@ -4,7 +4,6 @@ using Recrutement_api.DTOs.Expert;
 using Recrutement_api.DTOs.Offre;
 using Recrutement_api.Models;
 using Recrutement_api.Services.Interfaces;
-using System.Linq;
 
 namespace Recrutement_api.Services
 {
@@ -13,6 +12,7 @@ namespace Recrutement_api.Services
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
         private readonly ILinkGeneratorService _linkGenerator;
+
         public OffreService(
             ApplicationDbContext context,
             ICurrentUserService currentUser,
@@ -42,122 +42,39 @@ namespace Recrutement_api.Services
                 Localisation = dto.Localisation,
                 TypeContrat = dto.TypeContrat,
                 EstPublie = false,
+                IsPublicLinkEnabled = false,
                 CreeLe = DateTime.UtcNow
             };
 
-            offre.LienPublic = _linkGenerator.GenerateOfferLink(offre.Id);
             _context.OffresEmploi.Add(offre);
-
-
             await _context.SaveChangesAsync();
 
+            return MapToResponse(offre);
+        }
+
+        private OffreResponseDto MapToResponse(OffreEmploi o)
+        {
             return new OffreResponseDto
             {
-                Id = offre.Id,
-                Titre = offre.Titre,
-                Description = offre.Description,
-                Localisation = offre.Localisation,
-                TypeContrat = offre.TypeContrat,
-                EstPublie = offre.EstPublie,
-                CreeLe = offre.CreeLe,
-                LienPublic = offre.LienPublic,
-                EntrepriseId = entreprise.Id,
-                NomEntreprise = entreprise.Nom,
-
+                Id = o.Id,
+                Titre = o.Titre,
+                Description = o.Description,
+                Localisation = o.Localisation,
+                TypeContrat = o.TypeContrat,
+                EstPublie = o.EstPublie,
+                IsPublicLinkEnabled = o.IsPublicLinkEnabled,
+                PublicToken = o.PublicToken,
+                LienPublic = o.IsPublicLinkEnabled && !string.IsNullOrEmpty(o.PublicToken)
+                    ? _linkGenerator.GenerateOfferLink(o.PublicToken)
+                    : null,
+                PublicLinkExpiresAt = o.PublicLinkExpiresAt,
+                CreeLe = o.CreeLe,
+                EntrepriseId = o.EntrepriseId,
+                NomEntreprise = o.Entreprise?.Nom,
+                NombreCandidats = o.Candidatures?.Count ?? 0
             };
         }
-       /* public async Task<OffreResponseDto> ConfigurerFormulaireAsync(Guid offreId, FormulaireConfigDto dto)
-        {
-            var tenantId = _currentUser.TenantId;
 
-            var offre = await _context.OffresEmploi
-                .Include(o => o.Entreprise)
-                .Include(o => o.Formulaire)
-                    .ThenInclude(f => f.ChampsPersonnalises)
-                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
-
-            if (offre == null) throw new Exception("Offre introuvable");
-
-              if (offre.Formulaire == null)
-    {
-        offre.Formulaire = new FormulaireCandidature
-        {
-            Id = Guid.NewGuid(),
-            OffreId = offreId,
-            ChampsPersonnalises = new List<ChampPersonnalise>()
-        };
-
-        _context.FormulairesCandidature.Add(offre.Formulaire);
-    }
-
-    var formulaire = offre.Formulaire;
-
-    foreach (var champDto in dto.Champs)
-    {
-        if (champDto.Id.HasValue)
-        {
-            var champ = formulaire.ChampsPersonnalises
-                .FirstOrDefault(c => c.Id == champDto.Id);
-
-            if (champ == null)
-                throw new Exception("Champ introuvable");
-
-            champ.Nom = champDto.Nom;
-            champ.Question = champDto.Question;
-            champ.Type = champDto.Type;
-            champ.EstObligatoire = champDto.EstObligatoire;
-            champ.Ordre = champDto.Ordre;
-        }
-        else
-        {
-            formulaire.ChampsPersonnalises.Add(new ChampPersonnalise
-            {
-                Id = Guid.NewGuid(),
-                Nom = champDto.Nom,
-                Question = champDto.Question,
-                Type = champDto.Type,
-                EstObligatoire = champDto.EstObligatoire,
-                Ordre = champDto.Ordre
-            });
-        }
-    }
-
-            // Génération du lien si besoin
-            if (string.IsNullOrEmpty(offre.LienPublic))
-            {
-                offre.LienPublic = _linkGenerator.GenerateOfferLink(offre.Id);
-            }
-
-            await _context.SaveChangesAsync();
-
-            return new OffreResponseDto
-            {
-                Id = offre.Id,
-                Titre = offre.Titre,
-                Description = offre.Description,
-                Localisation = offre.Localisation,
-                TypeContrat = offre.TypeContrat,
-                EstPublie = offre.EstPublie,
-                CreeLe = offre.CreeLe,
-                LienPublic = offre.LienPublic,
-                EntrepriseId = offre.Entreprise.Id,
-                NomEntreprise = offre.Entreprise.Nom,
-                Formulaire = new FormulaireResponseDto
-                {
-                    Id = offre.Formulaire.Id,
-                    Champs = offre.Formulaire.ChampsPersonnalises.Select(c => new ChampPersonnaliseResponseDto
-                    {
-                        Id = c.Id,
-                        Nom = c.Nom,
-                        Question = c.Question,
-                        Type = c.Type,
-                        EstObligatoire = c.EstObligatoire,
-                        OptionsJson = c.OptionsJson,
-                        Ordre = c.Ordre
-                    }).ToList()
-                }
-            };
-        } */
         public async Task<OffreResponseDto> ObtenirOffreParIdAsync(Guid offreId)
         {
             var offre = await _context.OffresEmploi
@@ -167,25 +84,168 @@ namespace Recrutement_api.Services
                 .Include(o => o.Assignations)
                     .ThenInclude(a => a.Expert)
                         .ThenInclude(e => e.Utilisateur)
+                .Include(o => o.Candidatures)
                 .FirstOrDefaultAsync(o => o.Id == offreId);
 
             if (offre == null)
                 throw new Exception("Offre introuvable");
 
-            return new OffreResponseDto
+            var response = MapToResponse(offre);
+
+            if (offre.Formulaire != null)
+            {
+                response.Formulaire = new FormulaireResponseDto
+                {
+                    Id = offre.Formulaire.Id,
+                    Champs = offre.Formulaire.ChampsPersonnalises
+                        .OrderBy(c => c.Ordre)
+                        .Select(c => new ChampPersonnaliseResponseDto
+                        {
+                            Id = c.Id,
+                            Nom = c.Nom,
+                            Question = c.Question,
+                            Type = c.Type,
+                            EstObligatoire = c.EstObligatoire,
+                            OptionsJson = c.OptionsJson,
+                            Ordre = c.Ordre
+                        }).ToList()
+                };
+            }
+
+         
+
+            return response;
+        }
+        public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(Guid? entrepriseId, string? search, string? filter)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var query = _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .Include(o => o.Candidatures)
+                .Where(o => o.Entreprise.TenantId == tenantId)
+                .AsQueryable();
+
+            if (entrepriseId.HasValue)
+            {
+                query = query.Where(o => o.EntrepriseId == entrepriseId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var terms = search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var term in terms)
+                {
+                    var pattern = $"%{term}%";
+                    query = query.Where(o => EF.Functions.Like(o.Titre.ToLower(), pattern));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                switch (filter.ToLower())
+                {
+                    case "published": query = query.Where(o => o.EstPublie); break;
+                    case "draft": query = query.Where(o => !o.EstPublie); break;
+                }
+            }
+
+            var offres = await query
+                .OrderByDescending(o => o.CreeLe)
+                .ToListAsync();
+
+            return offres.Select(MapToResponse).ToList();
+        }
+
+        public async Task<OffreResponseDto> ChangerStatutPublicationAsync(Guid offreId, bool publier)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .Include(o => o.Candidatures)
+                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
+
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            offre.EstPublie = publier;
+            await _context.SaveChangesAsync();
+
+            return MapToResponse(offre);
+        }
+
+        public async Task<OffreResponseDto> TogglePublicLinkAsync(Guid offreId, bool enabled, DateTime? expiresAt = null)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .Include(o => o.Candidatures)
+                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
+
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            offre.IsPublicLinkEnabled = enabled;
+            offre.PublicLinkExpiresAt = expiresAt;
+
+            if (enabled && string.IsNullOrEmpty(offre.PublicToken))
+            {
+                offre.PublicToken = GenerateSecureToken();
+            }
+
+            await _context.SaveChangesAsync();
+            return MapToResponse(offre);
+        }
+
+        public async Task<OffreResponseDto> RegeneratePublicTokenAsync(Guid offreId)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .Include(o => o.Candidatures)
+                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
+
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            offre.PublicToken = GenerateSecureToken();
+            await _context.SaveChangesAsync();
+            return MapToResponse(offre);
+        }
+
+        public async Task<PublicOffreResponseDto> GetPublicOffreByTokenAsync(string token)
+        {
+            var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .Include(o => o.Formulaire)
+                    .ThenInclude(f => f.ChampsPersonnalises)
+                .FirstOrDefaultAsync(o => o.PublicToken == token);
+
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            // 🛡️ Security Validation
+            if (!offre.EstPublie)
+                throw new Exception("Cette offre n'est plus disponible (brouillon).");
+
+            if (!offre.IsPublicLinkEnabled)
+                throw new Exception("Le lien public pour cette offre a été désactivé.");
+
+            if (offre.PublicLinkExpiresAt.HasValue && offre.PublicLinkExpiresAt.Value < DateTime.UtcNow)
+                throw new Exception("Ce lien a expiré.");
+
+            return new PublicOffreResponseDto
             {
                 Id = offre.Id,
                 Titre = offre.Titre,
                 Description = offre.Description,
                 Localisation = offre.Localisation,
                 TypeContrat = offre.TypeContrat,
-                EstPublie = offre.EstPublie,
                 CreeLe = offre.CreeLe,
-                LienPublic = offre.LienPublic,
-
-                EntrepriseId = offre.Entreprise.Id,
                 NomEntreprise = offre.Entreprise?.Nom,
-
                 Formulaire = offre.Formulaire == null ? null : new FormulaireResponseDto
                 {
                     Id = offre.Formulaire.Id,
@@ -201,119 +261,20 @@ namespace Recrutement_api.Services
                             OptionsJson = c.OptionsJson,
                             Ordre = c.Ordre
                         }).ToList()
-                },
-
-               Experts = offre.Assignations?.Select(a => new ExpertDto
-{
-    Id = a.Expert.Id,
-    UtilisateurId = a.Expert.UtilisateurId ?? Guid.Empty,
-    Nom = a.Expert.Utilisateur != null ? a.Expert.Utilisateur.Nom : string.Empty,
-    EntrepriseId = a.Expert.EntrepriseId ?? Guid.Empty,
-    NomEntreprise = offre.Entreprise?.Nom,
-    Poste = a.Expert.Poste
-}).ToList() ?? new List<ExpertDto>()
+                }
             };
         }
-        public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(  Guid? entrepriseId, string? search,string? filter)
+
+        private string GenerateSecureToken()
         {
-            var tenantId = _currentUser.TenantId;
-
-            var query = _context.OffresEmploi
-                .Where(o => o.Entreprise.TenantId == tenantId)
-                .AsQueryable();
-
-            if (entrepriseId.HasValue)
-            {
-                query = query.Where(o => o.EntrepriseId == entrepriseId.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var terms = search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var term in terms)
-                {
-                    var pattern = $"%{term}%";
-
-                    query = query.Where(o =>
-                        EF.Functions.Like(o.Titre.ToLower(), pattern));
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(filter))
-            {
-                switch (filter.ToLower())
-                {
-                    case "publie":
-                        query = query.Where(o => o.EstPublie);
-                        break;
-
-                    case "brouillon":
-                        query = query.Where(o => !o.EstPublie);
-                        break;
-                }
-            }
-
-            var offres = await query
-                .OrderByDescending(o => o.CreeLe)
-                .Select(o => new OffreResponseDto
-                {
-                    Id = o.Id,
-                    Titre = o.Titre,
-                    Description = o.Description,
-                    Localisation = o.Localisation,
-                    TypeContrat = o.TypeContrat,
-                    EstPublie = o.EstPublie,
-                    CreeLe = o.CreeLe,
-                    LienPublic = o.LienPublic,
-                    EntrepriseId = o.Entreprise.Id,
-                    NomEntreprise = o.Entreprise.Nom
-                })
-                .ToListAsync();
-
-            return offres;
-        }
-
-        public async Task<OffreResponseDto> ChangerStatutPublicationAsync(Guid offreId, bool publier)
-        {
-            var tenantId = _currentUser.TenantId;
-
-            var offre = await _context.OffresEmploi
-                .Include(o => o.Entreprise)
-                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
-
-            if (offre == null)
-                throw new Exception("Offre introuvable");
-
-            offre.EstPublie = publier;
-
-            if (publier && string.IsNullOrWhiteSpace(offre.LienPublic))
-            {
-                offre.LienPublic = _linkGenerator.GenerateOfferLink(offre.Id);
-            }
-
-            await _context.SaveChangesAsync();
-
-            return new OffreResponseDto
-            {
-                Id = offre.Id,
-                Titre = offre.Titre,
-                Description = offre.Description,
-                Localisation = offre.Localisation,
-                TypeContrat = offre.TypeContrat,
-                EstPublie = offre.EstPublie,
-                CreeLe = offre.CreeLe,
-                LienPublic = offre.LienPublic,
-                EntrepriseId = offre.Entreprise.Id,
-                NomEntreprise = offre.Entreprise.Nom
-            };
+            return Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         }
 
         public async Task<OffreResponseDto> AssignerExpertsAsync(Guid offreId, AssignationExpertDto dto)
         {
             var offre = await _context.OffresEmploi
                 .Include(o => o.Assignations)
-                .Include(o => o.Entreprise) 
+                .Include(o => o.Entreprise)
                 .FirstOrDefaultAsync(o => o.Id == offreId);
 
             if (offre == null)
@@ -339,12 +300,11 @@ namespace Recrutement_api.Services
             {
                 offre.Assignations.Add(new AssignationExpert
                 {
-                    //Id = Guid.NewGuid(),
                     OffreId = offreId,
                     ExpertId = expertId
                 });
             }
-          
+
             await _context.SaveChangesAsync();
 
             return new OffreResponseDto
@@ -398,37 +358,25 @@ namespace Recrutement_api.Services
 
             var offre = await _context.OffresEmploi
                 .Include(o => o.Entreprise)
+                .Include(o => o.Candidatures)
                 .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
 
             if (offre == null)
                 throw new Exception("Offre introuvable ou accès non autorisé");
 
-            // Mise à jour des champs
             offre.Titre = dto.Titre;
             offre.Description = dto.Description;
             offre.Localisation = dto.Localisation;
-            
-if (dto.TypeContrat.HasValue)
-{
-    offre.TypeContrat = dto.TypeContrat.Value;
-}
+
+            if (dto.TypeContrat.HasValue)
+            {
+                offre.TypeContrat = dto.TypeContrat.Value;
+            }
 
             await _context.SaveChangesAsync();
-
-            return new OffreResponseDto
-            {
-                Id = offre.Id,
-                Titre = offre.Titre,
-                Description = offre.Description,
-                Localisation = offre.Localisation,
-                TypeContrat = offre.TypeContrat,
-                EstPublie = offre.EstPublie,
-                CreeLe = offre.CreeLe,
-                LienPublic = offre.LienPublic,
-                EntrepriseId = offre.EntrepriseId,
-                NomEntreprise = offre.Entreprise.Nom
-            };
+            return MapToResponse(offre);
         }
+
         public async Task SupprimerAssignationExpertAsync(Guid offreId, Guid expertId)
         {
             var tenantId = _currentUser.TenantId;
@@ -451,7 +399,6 @@ if (dto.TypeContrat.HasValue)
             await _context.SaveChangesAsync();
         }
 
-
         public async Task SupprimerOffreAsync(Guid offreId)
         {
             var tenantId = _currentUser.TenantId;
@@ -467,6 +414,7 @@ if (dto.TypeContrat.HasValue)
 
             await _context.SaveChangesAsync();
         }
+
         public async Task<FormulaireResponseDto> InitialiserFormulaireAsync(Guid offreId)
         {
             var tenantId = _currentUser.TenantId;
@@ -488,11 +436,6 @@ if (dto.TypeContrat.HasValue)
                 };
 
                 _context.FormulairesCandidature.Add(offre.Formulaire);
-            }
-
-            if (string.IsNullOrEmpty(offre.LienPublic))
-            {
-                offre.LienPublic = _linkGenerator.GenerateOfferLink(offre.Id);
             }
 
             await _context.SaveChangesAsync();
@@ -554,6 +497,7 @@ if (dto.TypeContrat.HasValue)
                 Ordre = c.Ordre
             }).ToList();
         }
+
         public async Task<ChampPersonnaliseResponseDto> ModifierChampAsync(Guid champId, ChampPersonnaliseDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -648,12 +592,5 @@ if (dto.TypeContrat.HasValue)
            })
            .ToListAsync();
         }
-
     }
-
-
-    }
-
-
-
-
+}

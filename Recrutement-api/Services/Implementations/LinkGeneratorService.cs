@@ -1,4 +1,4 @@
-﻿using Recrutement_api.Services.Interfaces;
+using Recrutement_api.Services.Interfaces;
 
 namespace Recrutement_api.Services.Implementations
 {
@@ -11,10 +11,9 @@ namespace Recrutement_api.Services.Implementations
             _configuration = configuration;
         }
 
-        public string GenerateOfferLink(Guid offerId)
+        public string GenerateOfferLink(string token)
         {
-            var baseUrl = _configuration["AppSettings:BaseUrl"];
-            return $"{baseUrl}/public/offres/{offerId}";
+            return $"http://localhost:5173/public/offres/{token}";
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace Recrutement_api.Models
@@ -39,7 +39,11 @@ namespace Recrutement_api.Models
         public string Description { get; set; }
         public string Localisation { get; set; }
         public bool EstPublie { get; set; } = false;
-        public string LienPublic { get; set; }
+        public bool IsPublicLinkEnabled { get; set; } = false;
+
+        // 🔹 Token sécurisé
+        public string? PublicToken { get; set; }
+        public DateTime? PublicLinkExpiresAt { get; set; }
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
         public FormulaireCandidature Formulaire { get; set; }

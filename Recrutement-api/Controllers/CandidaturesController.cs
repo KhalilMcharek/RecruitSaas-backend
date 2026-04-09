@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
+using Recrutement_api.Services.AI;
 
 
 namespace Recrutement_api.Controllers
@@ -12,10 +13,12 @@ namespace Recrutement_api.Controllers
     public class CandidaturesController : ControllerBase
     {
         private readonly CandidatureService _candidatureService;
+        private readonly IAiOrchestratorService _aiService;
 
-        public CandidaturesController(CandidatureService candidatureService)
+        public CandidaturesController(CandidatureService candidatureService, IAiOrchestratorService aiService)
         {
             _candidatureService = candidatureService;
+            _aiService = aiService;
         }
 
         /// <summary>
@@ -47,6 +50,55 @@ namespace Recrutement_api.Controllers
         {
             var stats = await _candidatureService.GetStatsAsync();
             return Ok(stats);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var candidature = await _candidatureService.GetCandidatureByIdAsync(id);
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            return Ok(candidature);
+        }
+
+        // ======================================
+        // AI Endpoints
+        // ======================================
+
+        [HttpPost("{id}/ai/score")]
+        public async Task<IActionResult> CalculateScore(Guid id)
+        {
+            var res = await _aiService.CalculateScoreAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/classify")]
+        public async Task<IActionResult> Classify(Guid id)
+        {
+            var res = await _aiService.ClassifyCandidateAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/summarize")]
+        public async Task<IActionResult> Summarize(Guid id)
+        {
+            var res = await _aiService.SummarizeCvAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-skills")]
+        public async Task<IActionResult> ExtractSkills(Guid id)
+        {
+            var res = await _aiService.ExtractCompetencesAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-experience")]
+        public async Task<IActionResult> ExtractExperience(Guid id)
+        {
+            var res = await _aiService.ExtractExperienceAsync(id);
+            return Ok(res);
         }
 
 [HttpGet("mes-candidatures")]

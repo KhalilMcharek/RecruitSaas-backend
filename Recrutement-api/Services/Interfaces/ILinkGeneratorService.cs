@@ -1,7 +1,7 @@
-﻿namespace Recrutement_api.Services.Interfaces
+namespace Recrutement_api.Services.Interfaces
 {
     public interface ILinkGeneratorService
     {
-        public string GenerateOfferLink(Guid offerId);
+        public string GenerateOfferLink(string token);
     }
 }
