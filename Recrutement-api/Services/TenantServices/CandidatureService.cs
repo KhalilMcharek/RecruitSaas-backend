@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Models;
+using Recrutement_api.DTOs.Candidate;
+using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.Interfaces;
 
 namespace Recrutement_api.Services.TenantServices
@@ -11,11 +13,49 @@ namespace Recrutement_api.Services.TenantServices
     {
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
+        private readonly CandidateProfileService _profileService;
 
-        public CandidatureService(ApplicationDbContext context, ICurrentUserService currentUser)
+        public CandidatureService(
+            ApplicationDbContext context,
+            ICurrentUserService currentUser,
+            CandidateProfileService profileService)
         {
             _context = context;
             _currentUser = currentUser;
+            _profileService = profileService;
+        }
+
+        /// <summary>
+        /// Profil candidat (CandidateProfiles + Utilisateur) pour une candidature du tenant courant.
+        /// </summary>
+        public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
+            GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var candidature = await _context.Candidatures
+                .AsNoTracking()
+                .Include(c => c.Offre)
+                    .ThenInclude(o => o!.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+
+            if (candidature == null)
+                return (false, "Candidature introuvable.", null);
+
+            if (candidature.Offre?.Entreprise == null ||
+                candidature.Offre.Entreprise.TenantId != tenantId)
+                return (false, "Non autorisé.", null);
+
+            var userId = await _context.Candidats
+                .AsNoTracking()
+                .Where(c => c.Id == candidature.CandidatId)
+                .Select(c => c.UtilisateurId)
+                .FirstOrDefaultAsync();
+
+            if (userId == Guid.Empty)
+                return (false, "Candidat introuvable.", null);
+
+            return await _profileService.GetProfileAsync(userId);
         }
 
         /// <summary>
@@ -145,29 +185,29 @@ namespace Recrutement_api.Services.TenantServices
             };
         }
 
-    public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
-{
-    Console.WriteLine($"[Direct] CandidatId reçu = {candidatId}");
 
-    var result = await _context.Candidatures
-        .Where(c => c.CandidatId == candidatId)
-        .OrderByDescending(c => c.CreeLe)
-        .Select(c => new CandidatureResponseDto
+
+        public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
-            Id            = c.Id,
-            NomCandidat   = c.Candidat.Utilisateur.Nom,
-            EmailCandidat = c.Candidat.Utilisateur.Email,
-            OffreId       = c.OffreId,
-            TitreOffre    = c.Offre.Titre,
-            EntrepriseId  = c.Offre.EntrepriseId,
-            NomEntreprise = c.Offre.Entreprise.Nom,
-            Statut        = c.Statut,
-            CreeLe        = c.CreeLe,
-            ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
-        })
-        .ToListAsync();
+            var result = await _context.Candidatures
+                .Where(c => c.CandidatId == candidatId)
+                .OrderByDescending(c => c.CreeLe)
+                .Select(c => new CandidatureResponseDto
+                {
+                    Id = c.Id,
+                    NomCandidat = c.Candidat.Utilisateur.Nom,
+                    EmailCandidat = c.Candidat.Utilisateur.Email,
+                    OffreId = c.OffreId,
+                    TitreOffre = c.Offre.Titre,
+                    EntrepriseId = c.Offre.EntrepriseId,
+                    NomEntreprise = c.Offre.Entreprise.Nom,
+                    Statut = c.Statut,
+                    CreeLe = c.CreeLe,
+                    ScoreIA = c.AnalyseCV != null ? c.AnalyseCV.Score : null
+                })
+                .ToListAsync();
 
-    Console.WriteLine($"[Direct] Résultats = {result.Count}");
-    return result;
-}}
+            return result;
+        }
+    }
 }

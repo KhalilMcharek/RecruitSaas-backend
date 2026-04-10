@@ -12,8 +12,8 @@ using Recrutement_api.Data;
 namespace Recrutement_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260408114441_AddProfileTables")]
-    partial class AddProfileTables
+    [Migration("20260409162009_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -35,22 +35,18 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Classification")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Competences")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Experience")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Resume")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<float?>("Score")
@@ -462,12 +458,17 @@ namespace Recrutement_api.Migrations
                     b.Property<bool>("EstPublie")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LienPublic")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsPublicLinkEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Localisation")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PublicLinkExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublicToken")
                         .HasColumnType("text");
 
                     b.Property<string>("Titre")

@@ -52,6 +52,7 @@ namespace Recrutement_api.Controllers
             return Ok(stats);
         }
 
+<<<<<<< HEAD
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(Guid id)
         {
@@ -99,6 +100,22 @@ namespace Recrutement_api.Controllers
         {
             var res = await _aiService.ExtractExperienceAsync(id);
             return Ok(res);
+=======
+        /// <summary>
+        /// GET /api/candidatures/{candidatureId}/candidate-profile
+        /// Profil (CandidateProfiles) du candidat pour une candidature du tenant.
+        /// </summary>
+        [HttpGet("{candidatureId:guid}/candidate-profile")]
+        public async Task<IActionResult> GetCandidateProfile(Guid candidatureId)
+        {
+            var (success, message, data) =
+                await _candidatureService.GetCandidateProfileForTenantCandidatureAsync(candidatureId);
+
+            if (!success)
+                return NotFound(new { success = false, message });
+
+            return Ok(new { success = true, data });
+>>>>>>> c2eddc3 (pull avant service AI)
         }
 
 [HttpGet("mes-candidatures")]
