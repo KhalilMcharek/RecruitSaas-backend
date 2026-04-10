@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.DTOs.Candidature;
+using Recrutement_api.Services.AI;
 
 namespace Recrutement_api.Controllers
 {
@@ -12,10 +13,14 @@ namespace Recrutement_api.Controllers
     public class CandidaturesController : ControllerBase
     {
         private readonly CandidatureService _candidatureService;
+        private readonly IAiOrchestratorService _aiService;
 
-        public CandidaturesController(CandidatureService candidatureService)
+        public CandidaturesController(
+            CandidatureService candidatureService,
+            IAiOrchestratorService aiService)
         {
             _candidatureService = candidatureService;
+            _aiService = aiService;
         }
 
         [HttpGet]
@@ -30,6 +35,7 @@ namespace Recrutement_api.Controllers
         {
             var result = await _candidatureService.GetCandidaturesAsync(
                 entrepriseId, nomOffre, statut, scoreMin, scoreMax, dateDebut, dateFin);
+
             return Ok(result);
         }
 
@@ -40,14 +46,60 @@ namespace Recrutement_api.Controllers
             return Ok(stats);
         }
 
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var candidature = await _candidatureService.GetCandidatureByIdAsync(id);
+
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            return Ok(candidature);
+        }
+
+        // ================= AI =================
+
+        [HttpPost("{id}/ai/score")]
+        public async Task<IActionResult> CalculateScore(Guid id)
+        {
+            var res = await _aiService.CalculateScoreAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/classify")]
+        public async Task<IActionResult> Classify(Guid id)
+        {
+            var res = await _aiService.ClassifyCandidateAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/summarize")]
+        public async Task<IActionResult> Summarize(Guid id)
+        {
+            var res = await _aiService.SummarizeCvAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-skills")]
+        public async Task<IActionResult> ExtractSkills(Guid id)
+        {
+            var res = await _aiService.ExtractCompetencesAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-experience")]
+        public async Task<IActionResult> ExtractExperience(Guid id)
+        {
+            var res = await _aiService.ExtractExperienceAsync(id);
+            return Ok(res);
+        }
+
+        // ================= MES CANDIDATURES =================
+
         [HttpGet("mes-candidatures")]
         public async Task<IActionResult> GetMesCandidatures()
         {
-            foreach (var claim in User.Claims)
-                Console.WriteLine($"[JWT CLAIM] {claim.Type} = {claim.Value}");
-
             var candidatIdStr = User.FindFirstValue("candidatId");
-            Console.WriteLine($"[mes-candidatures] candidatId = {candidatIdStr}");
 
             if (string.IsNullOrEmpty(candidatIdStr))
                 return Unauthorized(new { message = "candidatId manquant dans le token." });
@@ -71,15 +123,26 @@ namespace Recrutement_api.Controllers
             };
 
             if (!statutsValides.Contains(dto.Statut))
-                return BadRequest(new { message = $"Statut invalide. Valeurs acceptées : {string.Join(", ", statutsValides)}" });
+                return BadRequest(new
+                {
+                    message = $"Statut invalide. Valeurs acceptées : {string.Join(", ", statutsValides)}"
+                });
 
             try
             {
-                var result = await _candidatureService.ChangerStatutAsync(candidatureId, dto.Statut);
+                var result = await _candidatureService
+                    .ChangerStatutAsync(candidatureId, dto.Statut);
+
                 return Ok(result);
             }
-            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
-            catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
     }
 }

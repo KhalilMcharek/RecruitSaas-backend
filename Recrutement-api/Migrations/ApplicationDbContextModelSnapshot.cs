@@ -32,22 +32,18 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Classification")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Competences")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Experience")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Resume")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<float?>("Score")
@@ -142,6 +138,68 @@ namespace Recrutement_api.Migrations
                         .IsUnique();
 
                     b.ToTable("Candidats");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Availability")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Bio")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Education")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Experience")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FieldOfStudy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Github")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Linkedin")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Location")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PortfolioUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Seeking")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkillsJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatId")
+                        .IsUnique();
+
+                    b.ToTable("CandidateProfiles");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Candidature", b =>
@@ -438,12 +496,17 @@ namespace Recrutement_api.Migrations
                     b.Property<bool>("EstPublie")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LienPublic")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsPublicLinkEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Localisation")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PublicLinkExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublicToken")
                         .HasColumnType("text");
 
                     b.Property<string>("Titre")
@@ -483,6 +546,56 @@ namespace Recrutement_api.Migrations
                         .IsUnique();
 
                     b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.TenantProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HiringStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("JobTitle")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Linkedin")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TechStackJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Twitter")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Website")
+                        .HasColumnType("text");
+
+                    b.Property<string>("WorkTypesJson")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantProfiles");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Utilisateur", b =>
@@ -586,6 +699,17 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Utilisateur");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidat", "Candidat")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.CandidateProfile", "CandidatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidat");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Candidature", b =>
@@ -702,6 +826,17 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Utilisateur");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.TenantProfile", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Tenant", "Tenant")
+                        .WithOne()
+                        .HasForeignKey("Recrutement_api.Models.TenantProfile", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Candidat", b =>

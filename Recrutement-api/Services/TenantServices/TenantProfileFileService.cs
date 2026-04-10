@@ -1,149 +1,154 @@
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Recrutement_api.Data;
+using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Tenant;
+using Recrutement_api.Models;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Recrutement_api.Services.TenantServices
 {
-    public class TenantProfileFileService
+    public class TenantProfileService
     {
-        private readonly IWebHostEnvironment _env;
-        private readonly string _dataFolder;
-        private readonly string _imagesFolder;
-        private readonly JsonSerializerOptions _jsonOptions;
+        private readonly ApplicationDbContext _context;
+        private readonly Cloudinary _cloudinary;
+        private readonly ILogger<TenantProfileService> _logger;
 
-        public TenantProfileFileService(IWebHostEnvironment env)
+        public TenantProfileService(
+            ApplicationDbContext context,
+            IOptions<CloudinarySettings> cloudinaryConfig,
+            ILogger<TenantProfileService> logger)
         {
-            _env = env;
-            _dataFolder = Path.Combine(_env.WebRootPath, "data", "tenant-profiles");
-            _imagesFolder = Path.Combine(_env.WebRootPath, "imagesProfile");
-            
-            _jsonOptions = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                AllowTrailingCommas = true,
-                PropertyNameCaseInsensitive = true
-            };
+            _context = context;
+            _logger = logger;
+
+            var account = new Account(
+                cloudinaryConfig.Value.CloudName,
+                cloudinaryConfig.Value.ApiKey,
+                cloudinaryConfig.Value.ApiSecret);
+            _cloudinary = new Cloudinary(account);
         }
 
-        public async Task<TenantProfileData?> GetProfileAsync(Guid tenantId)
+        public async Task<(bool Success, string Message, TenantProfileDto? Data)>
+            GetProfileAsync(Guid tenantId)
         {
-            var filePath = GetProfilePath(tenantId);
-            if (!File.Exists(filePath)) return null;
+            var tenant = await _context.Tenants
+                .Include(t => t.Utilisateur)
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
 
-            var json = await File.ReadAllTextAsync(filePath);
-            var profile = JsonSerializer.Deserialize<TenantProfileData>(json, _jsonOptions);
-            
-            // Ensure collections are never null
-            profile ??= new TenantProfileData();
-            profile.WorkTypes ??= new List<string>();
-            profile.TechStack ??= new List<string>();
-            
-            return profile;
+            if (tenant == null)
+                return (false, "Tenant introuvable", null);
+
+            var profile = await _context.TenantProfiles
+                .FirstOrDefaultAsync(p => p.TenantId == tenantId);
+
+            return (true, "OK", BuildDto(tenant, profile));
         }
 
-        public async Task<bool> SaveProfileAsync(Guid tenantId, UpdateTenantProfileDto dto, 
-            IFormFile? logo, string? existingLogoUrl, int existingActiveJobs, int existingTotalHires)
+        public async Task<(bool Success, string Message, TenantProfileDto? Data)>
+            UpdateProfileAsync(Guid tenantId, TenantProfileDto dto, IFormFile? logo)
         {
-            Directory.CreateDirectory(_dataFolder);
-            
-            // ── Gestion du logo ──
-            string? logoUrl = existingLogoUrl;
-            
-            if (logo != null && logo.Length > 0)
+            var tenant = await _context.Tenants
+                .Include(t => t.Utilisateur)
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return (false, "Tenant introuvable", null);
+
+            var profile = await _context.TenantProfiles
+                .FirstOrDefaultAsync(p => p.TenantId == tenantId);
+
+            if (profile == null)
             {
-                Directory.CreateDirectory(_imagesFolder);
-                
-                var ext = Path.GetExtension(logo.FileName).ToLowerInvariant();
-                var allowedExts = new[] { ".jpg", ".jpeg", ".png", ".webp", ".svg" };
-                
-                if (!allowedExts.Contains(ext))
-                    return false; // Extension non autorisée
-                
-                // Supprimer l'ancien logo si c'était un fichier local
-                if (!string.IsNullOrEmpty(existingLogoUrl) && 
-                    existingLogoUrl.Contains("/imagesProfile/"))
-                {
-                    try
-                    {
-                        var oldFileName = Path.GetFileName(new Uri(existingLogoUrl).LocalPath);
-                        var oldPath = Path.Combine(_imagesFolder, oldFileName);
-                        if (File.Exists(oldPath)) File.Delete(oldPath);
-                    }
-                    catch { /* Ignorer les erreurs de suppression */ }
-                }
-                
-                var fileName = $"{tenantId}_{Guid.NewGuid()}{ext}";
-                var filePath = Path.Combine(_imagesFolder, fileName);
-                
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                    await logo.CopyToAsync(stream);
-                
-                logoUrl = $"/imagesProfile/{fileName}";
+                profile = new TenantProfile { TenantId = tenantId };
+                _context.TenantProfiles.Add(profile);
             }
 
-            // ── Construction du profil ──
-            var profile = new TenantProfileData
+            // ── Upload logo ─────────────────────────────────
+            if (logo != null && logo.Length > 0)
             {
-                CompanyName = dto.CompanyName,
-                Industry = dto.Industry,
-                CompanySize = dto.CompanySize,
-                Location = dto.Location,
-                Description = dto.Description,
-                Website = dto.Website,
-                Linkedin = dto.Linkedin,
-                Twitter = dto.Twitter,
-                FullName = dto.FullName,
-                Email = dto.Email,
-                JobTitle = dto.JobTitle,
-                Phone = dto.Phone,
-                HiringStatus = dto.HiringStatus ?? "actively",
-                WorkTypes = dto.WorkTypes ?? new List<string>(),
-                TechStack = dto.TechStack ?? new List<string>(),
-                LogoUrl = logoUrl,
-                ActiveJobs = existingActiveJobs,
-                TotalHires = existingTotalHires,
-                UpdatedAt = DateTime.UtcNow
-            };
+                if (logo.Length > 5 * 1024 * 1024)
+                    return (false, "Le logo ne doit pas dépasser 5 Mo", null);
 
-            var json = JsonSerializer.Serialize(profile, _jsonOptions);
-            await File.WriteAllTextAsync(GetProfilePath(tenantId), json);
-            
-            return true;
+                var ext = Path.GetExtension(logo.FileName).ToLowerInvariant();
+                var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp", ".svg" };
+                if (!allowed.Contains(ext))
+                    return (false, "Format non supporté (jpg, png, webp, svg)", null);
+
+                var (url, error) = await UploadImageAsync(logo, "tenant-logos");
+                if (error != null)
+                    return (false, $"Erreur upload logo : {error}", null);
+
+                profile.LogoUrl = url;
+            }
+
+            // ── Mise à jour des champs ─────────────────────
+            profile.JobTitle = dto.JobTitle;
+            profile.Phone = dto.Phone;
+            profile.Website = dto.Website;
+            profile.Linkedin = dto.Linkedin;
+            profile.Twitter = dto.Twitter;
+            profile.HiringStatus = dto.HiringStatus ?? "actively";
+            profile.WorkTypesJson = dto.WorkTypes != null
+                ? JsonSerializer.Serialize(dto.WorkTypes) : "[]";
+            profile.TechStackJson = dto.TechStack != null
+                ? JsonSerializer.Serialize(dto.TechStack) : "[]";
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("✅ Profil tenant mis à jour: {id}", tenantId);
+            return (true, "Profil enregistré avec succès", BuildDto(tenant, profile));
         }
 
-        public string? GetLogoUrl(Guid tenantId)
+        private static TenantProfileDto BuildDto(Tenant tenant, TenantProfile? profile)
         {
-            var profile = GetProfileAsync(tenantId).Result;
-            return profile?.LogoUrl;
+            return new TenantProfileDto
+            {
+                FullName = tenant.Utilisateur.Nom ?? "",
+                Email = tenant.Utilisateur.Email ?? "",
+                JobTitle = profile?.JobTitle,
+                Phone = profile?.Phone,
+                Website = profile?.Website,
+                Linkedin = profile?.Linkedin,
+                Twitter = profile?.Twitter,
+                HiringStatus = profile?.HiringStatus ?? "actively",
+                WorkTypes = string.IsNullOrEmpty(profile?.WorkTypesJson)
+                    ? new List<string>()
+                    : JsonSerializer.Deserialize<List<string>>(profile.WorkTypesJson) ?? new(),
+                TechStack = string.IsNullOrEmpty(profile?.TechStackJson)
+                    ? new List<string>()
+                    : JsonSerializer.Deserialize<List<string>>(profile.TechStackJson) ?? new(),
+                LogoUrl = profile?.LogoUrl,
+            };
         }
 
-        private string GetProfilePath(Guid tenantId) => 
-            Path.Combine(_dataFolder, $"{tenantId}.json");
-    }
+        private async Task<(string? Url, string? Error)> UploadImageAsync(IFormFile file, string folder)
+        {
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = folder,
+                    Transformation = new Transformation().Quality("auto")
+                };
+                var result = await _cloudinary.UploadAsync(uploadParams);
 
-    // Modèle interne pour la sérialisation
-    public class TenantProfileData
-    {
-        public string? CompanyName { get; set; }
-        public string? Industry { get; set; }
-        public string? CompanySize { get; set; }
-        public string? Location { get; set; }
-        public string? Description { get; set; }
-        public string? Website { get; set; }
-        public string? Linkedin { get; set; }
-        public string? Twitter { get; set; }
-        public string? FullName { get; set; }
-        public string? Email { get; set; }
-        public string? JobTitle { get; set; }
-        public string? Phone { get; set; }
-        public string? HiringStatus { get; set; }
-        public List<string> WorkTypes { get; set; } = new();
-        public List<string> TechStack { get; set; } = new();
-        public string? LogoUrl { get; set; }
-        public int ActiveJobs { get; set; }
-        public int TotalHires { get; set; }
-        public DateTime UpdatedAt { get; set; }
+                if (result.Error != null)
+                {
+                    _logger.LogWarning("Cloudinary error: {msg}", result.Error.Message);
+                    return (null, result.Error.Message);
+                }
+                return (result.SecureUrl.ToString(), null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de l'upload Cloudinary");
+                return (null, ex.Message);
+            }
+        }
     }
 }

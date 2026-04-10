@@ -1,4 +1,4 @@
-﻿using Recrutement_api.DTOs.Offre;
+using Recrutement_api.DTOs.Offre;
 using Recrutement_api.DTOs.Expert;
 using Recrutement_api.Models;
 namespace Recrutement_api.Services.Interfaces
@@ -10,6 +10,9 @@ namespace Recrutement_api.Services.Interfaces
         Task<OffreResponseDto> ObtenirOffreParIdAsync(Guid offreId);
         Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(Guid? entrepriseId, string search, string filter);
         Task<OffreResponseDto> ChangerStatutPublicationAsync(Guid offreId, bool publier);
+        Task<OffreResponseDto> TogglePublicLinkAsync(Guid offreId, bool enabled, DateTime? expiresAt = null);
+        Task<OffreResponseDto> RegeneratePublicTokenAsync(Guid offreId);
+        Task<PublicOffreResponseDto> GetPublicOffreByTokenAsync(string token);
         Task<OffreResponseDto> AssignerExpertsAsync(Guid offreId, AssignationExpertDto dto);
         Task<List<ExpertDto>> RechercherExpertsAsync(Guid offreId, string? search);
         Task <OffreResponseDto> ModifierOffreAsync(Guid offreId, OffreUpdateDto dto);

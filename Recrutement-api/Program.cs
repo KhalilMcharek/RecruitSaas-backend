@@ -11,6 +11,7 @@ using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
 using Recrutement_api.Services.TenantServices;
+using Recrutement_api.Services.AI;
 using Serilog;
 using Serilog.Events;
 
@@ -43,7 +44,25 @@ builder.Host.UseSerilog();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    )
+);
+
+
+
+// Services d'extraction de CV
+builder.Services.AddHttpClient(); // Requis par CvParserService
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
+// =============================
+// SERVICES
+// =============================
+
+// Controllers + JSON
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -94,6 +113,8 @@ builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
 builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
 builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Expert.Implementations.ExpertFonctionsService>();
 
+builder.Services.AddScoped<Recrutement_api.Services.CandidatServices.ICandidatService, Recrutement_api.Services.CandidatServices.CandidatService>();
+
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<CandidatureService>();
@@ -106,6 +127,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>
 builder.Services.AddSingleton<TenantProfileFileService>();
 builder.Services.AddSingleton<CandidateProfileFileService>();
 builder.Services.AddScoped<IExpertService, ExpertUserService>();
+builder.Services.AddScoped<CandidateProfileService>();
+builder.Services.AddScoped<TenantProfileService>();
+builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
 
 var app = builder.Build();
 
@@ -119,6 +143,10 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+
+
+
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
