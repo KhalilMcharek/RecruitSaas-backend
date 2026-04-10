@@ -139,53 +139,54 @@ namespace Recrutement_api.Services.TenantServices
                 ScoreMoyenIA = scores.Any() ? (float?)scores.Average() : null
             };
         }
+
+
+
         public async Task<object?> GetCandidatureByIdAsync(Guid id)
-        {
-            var candidature = await _context.Candidatures
-                .Include(c => c.Offre)
-                .ThenInclude(o => o.Entreprise)
-                .Include(c => c.Candidat)
-                .ThenInclude(ca => ca.Utilisateur)
-                .Include(c => c.AnalyseCV)
-                .FirstOrDefaultAsync(c => c.Id == id);
+ {
+     var candidature = await _context.Candidatures
+         .Include(c => c.Offre)
+         .ThenInclude(o => o.Entreprise)
+         .Include(c => c.Candidat)
+         .ThenInclude(ca => ca.Utilisateur)
+         .Include(c => c.AnalyseCV)
+         .FirstOrDefaultAsync(c => c.Id == id);
 
-            if (candidature == null) return null;
+     if (candidature == null) return null;
 
-            // Deserialize the FormulaireResponses JSON
-            object parsedResponses = null;
-            if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
-            {
-                try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
-                catch { parsedResponses = candidature.FormulaireResponses; }
-            }
+     // Deserialize the FormulaireResponses JSON
+     object parsedResponses = null;
+     if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
+     {
+         try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
+         catch { parsedResponses = candidature.FormulaireResponses; }
+     }
 
-            return new
-            {
-                candidature.Id,
-                candidature.OffreId,
-                candidature.CandidatId,
-                NomCandidat = candidature.Candidat.Utilisateur.Nom,
-                EmailCandidat = candidature.Candidat.Utilisateur.Email,
-                TitreOffre = candidature.Offre.Titre,
-                NomEntreprise = candidature.Offre.Entreprise.Nom,
-                candidature.Statut,
-                candidature.CreeLe,
-                candidature.CvUrl,
-                FormulaireResponses = parsedResponses,
-                AnalyseCV = candidature.AnalyseCV != null ? new 
-                {
-                    candidature.AnalyseCV.Id,
-                    candidature.AnalyseCV.Score,
-                    candidature.AnalyseCV.Classification,
-                    candidature.AnalyseCV.Resume,
-                    candidature.AnalyseCV.Competences,
-                    candidature.AnalyseCV.Experience,
-                    candidature.AnalyseCV.TexteExtrait
-                } : null
-            };
-        }
-
-
+     return new
+     {
+         candidature.Id,
+         candidature.OffreId,
+         candidature.CandidatId,
+         NomCandidat = candidature.Candidat.Utilisateur.Nom,
+         EmailCandidat = candidature.Candidat.Utilisateur.Email,
+         TitreOffre = candidature.Offre.Titre,
+         NomEntreprise = candidature.Offre.Entreprise.Nom,
+         candidature.Statut,
+         candidature.CreeLe,
+         candidature.CvUrl,
+         FormulaireResponses = parsedResponses,
+         AnalyseCV = candidature.AnalyseCV != null ? new 
+         {
+             candidature.AnalyseCV.Id,
+             candidature.AnalyseCV.Score,
+             candidature.AnalyseCV.Classification,
+             candidature.AnalyseCV.Resume,
+             candidature.AnalyseCV.Competences,
+             candidature.AnalyseCV.Experience,
+             candidature.AnalyseCV.TexteExtrait
+         } : null
+     };
+ }
 
         public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
@@ -209,5 +210,9 @@ namespace Recrutement_api.Services.TenantServices
 
             return result;
         }
+
+
+
+       
     }
 }

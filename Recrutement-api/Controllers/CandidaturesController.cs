@@ -52,6 +52,53 @@ namespace Recrutement_api.Controllers
             return Ok(stats);
         }
 
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var candidature = await _candidatureService.GetCandidatureByIdAsync(id);
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            return Ok(candidature);
+        }
+
+        // ======================================
+        // AI Endpoints
+        // ======================================
+
+        [HttpPost("{id}/ai/score")]
+        public async Task<IActionResult> CalculateScore(Guid id)
+        {
+            var res = await _aiService.CalculateScoreAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/classify")]
+        public async Task<IActionResult> Classify(Guid id)
+        {
+            var res = await _aiService.ClassifyCandidateAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/summarize")]
+        public async Task<IActionResult> Summarize(Guid id)
+        {
+            var res = await _aiService.SummarizeCvAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-skills")]
+        public async Task<IActionResult> ExtractSkills(Guid id)
+        {
+            var res = await _aiService.ExtractCompetencesAsync(id);
+            return Ok(res);
+        }
+
+        [HttpPost("{id}/ai/extract-experience")]
+        public async Task<IActionResult> ExtractExperience(Guid id)
+        {
+            var res = await _aiService.ExtractExperienceAsync(id);
+            return Ok(res);}
         /// <summary>
         /// GET /api/candidatures/{candidatureId}/candidate-profile
         /// Profil (CandidateProfiles) du candidat pour une candidature du tenant.

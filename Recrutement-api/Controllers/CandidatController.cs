@@ -249,6 +249,20 @@ namespace Recrutement_api.Controllers
             _logger.LogInformation("✅ Statut candidature {id} → {statut}", id, dto.Statut);
             return Ok(new { message = "Statut mis à jour.", statut = dto.Statut });
         }
+        // ═══════════════════════════════════════════════════════
+// GET /api/candidat/{userId}/profile
+// Profil public d'un candidat (pour recruteur/expert)
+// ═══════════════════════════════════════════════════════
+[HttpGet("{userId:guid}/profile")]
+public async Task<IActionResult> GetCandidateProfileById(Guid userId)
+{
+    var (success, message, data) = await _profileService.GetProfileAsync(userId);
+
+    if (!success)
+        return NotFound(new { success = false, message });
+
+    return Ok(new { success = true, data });
+}
     }
  
     // DTO pour le PATCH statut
