@@ -630,7 +630,6 @@ namespace Recrutement_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Telephone")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
