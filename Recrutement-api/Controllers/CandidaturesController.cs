@@ -110,7 +110,7 @@ namespace Recrutement_api.Controllers
                 await _candidatureService.GetCandidateProfileForTenantCandidatureAsync(candidatureId);
 
             if (!success)
-                return NotFound(new { success = false, message });
+                return Ok(new { success = false, message });
 
             return Ok(new { success = true, data });
         }

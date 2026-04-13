@@ -6,6 +6,7 @@ namespace Recrutement_api.Services.CandidatServices
     public interface ICandidatService
     {
         Task<object> GetFormulaireAsync(Guid offreId);
+Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId);
 
         
         Task<PostulerResultDto> PostulerAsync(Guid userId, PostulerDto dto);
