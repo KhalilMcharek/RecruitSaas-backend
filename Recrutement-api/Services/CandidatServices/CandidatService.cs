@@ -111,7 +111,7 @@ namespace Recrutement_api.Services.CandidatServices
                 OffreId             = dto.OffreId,
                 CandidatId          = candidat.Id,
                 CvUrl               = cvUrl,
-                Statut              = "Nouvelle",
+                Statut              = "Pending",
                 CreeLe              = DateTime.UtcNow,
                 FormulaireResponses = BuildFormulaireResponsesJson(dto)
             };

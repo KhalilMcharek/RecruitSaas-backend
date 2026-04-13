@@ -55,7 +55,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddHttpClient(); // Requis par CvParserService
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
-builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
+builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
 // =============================
 // SERVICES

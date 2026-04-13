@@ -93,9 +93,9 @@ namespace Recrutement_api.Services.TenantServices
             return new CandidatureStatsDto
             {
                 Total = all.Count,
-                EnAttente = all.Count(x => x.Statut == "Nouvelle" || x.Statut == "En cours"),
-                Acceptees = all.Count(x => x.Statut == "Acceptée"),
-                Refusees = all.Count(x => x.Statut == "Refusée"),
+                EnAttente = all.Count(x => x.Statut == "Pending" || x.Statut == "En cours"),
+                Acceptees = all.Count(x => x.Statut == "Accepted"),
+                Refusees = all.Count(x => x.Statut == "Rejected"),
                 ScoreMoyenIA = scores.Any() ? (float?)scores.Average() : null
             };
         }
