@@ -27,7 +27,7 @@ namespace Recrutement_api.Models
         public string? Prenom { get; set; }
         [Required]
         public string Nom { get; set; }
-        [Required]
+        
         public string? Telephone { get; set; }
         public RoleUtilisateur Role { get; set; }
 

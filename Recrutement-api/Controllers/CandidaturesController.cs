@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Services.AI;
+using Microsoft.EntityFrameworkCore;
+using Recrutement_api.Data;
 
 namespace Recrutement_api.Controllers
 {
@@ -14,13 +16,16 @@ namespace Recrutement_api.Controllers
     {
         private readonly CandidatureService _candidatureService;
         private readonly IAiOrchestratorService _aiService;
+        private readonly ApplicationDbContext _context;
 
         public CandidaturesController(
             CandidatureService candidatureService,
-            IAiOrchestratorService aiService)
+            IAiOrchestratorService aiService,
+            ApplicationDbContext context)
         {
             _candidatureService = candidatureService;
-            _aiService = aiService;
+            _aiService          = aiService;
+            _context            = context;
         }
 
         [HttpGet]
@@ -35,7 +40,6 @@ namespace Recrutement_api.Controllers
         {
             var result = await _candidatureService.GetCandidaturesAsync(
                 entrepriseId, nomOffre, statut, scoreMin, scoreMax, dateDebut, dateFin);
-
             return Ok(result);
         }
 
@@ -50,11 +54,81 @@ namespace Recrutement_api.Controllers
         public async Task<IActionResult> GetById(Guid id)
         {
             var candidature = await _candidatureService.GetCandidatureByIdAsync(id);
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+            return Ok(candidature);
+        }
+
+        // ── Avis experts pour une candidature (utilisé par le tenant) ──────────
+        [HttpGet("{id}/avis-experts")]
+        public async Task<IActionResult> GetAvisExperts(Guid id)
+        {
+            // Vérifie que la candidature existe
+            var candidature = await _context.Candidatures
+                .FirstOrDefaultAsync(c => c.Id == id);
 
             if (candidature == null)
                 return NotFound(new { message = "Candidature non trouvée" });
 
-            return Ok(candidature);
+            // Récupère tous les avis experts pour cette candidature
+            var avis = await _context.AvisExperts
+                .Include(a => a.Expert)
+                .Where(a => a.CandidatureId == id)
+                .OrderByDescending(a => a.CreeLe)
+                .Select(a => new
+                {
+                    id           = a.Id,
+                    expertId     = a.ExpertId,
+                    expertNom    = a.Expert != null
+                                    ? (a.Expert.FirstName + " " + a.Expert.LastName).Trim()
+                                    : "Expert",
+                    expertPoste  = a.Expert != null ? a.Expert.Poste : null,
+                    score        = a.Score,
+                    scorePct     = (int)Math.Round(a.Score * 20),  // /5 → /100
+                    commentaire  = a.Commentaire,
+                    creeLe       = a.CreeLe
+                })
+                .ToListAsync();
+
+            // Score moyen de l'équipe
+            double? scoreMoyen = avis.Any()
+                ? Math.Round(avis.Average(a => a.score), 2)
+                : null;
+
+            return Ok(new
+            {
+                avis,
+                scoreMoyen,
+                nombreAvis = avis.Count
+            });
+        }
+
+        // ── Experts assignés à l'offre de cette candidature ──────────────────
+        [HttpGet("{id}/experts-assignes")]
+        public async Task<IActionResult> GetExpertsAssignes(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            var experts = await _context.AssignationsExperts
+                .Include(a => a.Expert)
+                .Where(a => a.OffreId == candidature.OffreId)
+                .Select(a => new
+                {
+                    expertId  = a.ExpertId,
+                    nom       = a.Expert != null
+                                 ? (a.Expert.FirstName + " " + a.Expert.LastName).Trim()
+                                 : "Expert",
+                    poste     = a.Expert != null ? a.Expert.Poste : null,
+                    isActive  = a.Expert != null ? a.Expert.IsActive : false,
+                    assigneLe = a.AssigneLe
+                })
+                .ToListAsync();
+
+            return Ok(experts);
         }
 
         // ================= AI =================
@@ -130,19 +204,11 @@ namespace Recrutement_api.Controllers
 
             try
             {
-                var result = await _candidatureService
-                    .ChangerStatutAsync(candidatureId, dto.Statut);
-
+                var result = await _candidatureService.ChangerStatutAsync(candidatureId, dto.Statut);
                 return Ok(result);
             }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
         }
     }
 }

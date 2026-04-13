@@ -21,6 +21,7 @@ public class InviteExpertDto
 
     [Required(ErrorMessage = "L'entreprise est obligatoire.")]
     public Guid CompanyId { get; set; }
+    public string? Poste { get; set; }
 }
 
 public class UpdateExpertDto

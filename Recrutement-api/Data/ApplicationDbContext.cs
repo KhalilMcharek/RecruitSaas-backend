@@ -25,6 +25,8 @@ namespace Recrutement_api.Data
         public DbSet<AnalyseCV>             AnalysesCV             { get; set; }
         public DbSet<EntretienIA>           EntretiensIA           { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<TenantProfile>    TenantProfiles    { get; set; }
+        public DbSet<CandidateProfile> CandidateProfiles { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -127,6 +129,13 @@ modelBuilder.Entity<AvisExpert>()
     .HasOne(a => a.Expert)
     .WithMany(e => e.Avis)
     .HasForeignKey(a => a.ExpertId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+            // Après la relation AvisExpert → Expert déjà existante, ajoutez :
+modelBuilder.Entity<AvisExpert>()
+    .HasOne(a => a.Candidature)
+    .WithMany(c => c.Avis)
+    .HasForeignKey(a => a.CandidatureId)
     .OnDelete(DeleteBehavior.Cascade);
         }
 

@@ -5,7 +5,6 @@ using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Models;
 using Recrutement_api.Services.Interfaces;
 
-
 namespace Recrutement_api.Services.TenantServices
 {
     public class CandidatureService
@@ -80,20 +79,18 @@ namespace Recrutement_api.Services.TenantServices
                 ScoreMoyenIA = scores.Any() ? (float?)scores.Average() : null
             };
         }
+
         public async Task<object?> GetCandidatureByIdAsync(Guid id)
         {
             var candidature = await _context.Candidatures
-                .Include(c => c.Offre)
-                .ThenInclude(o => o.Entreprise)
-                .Include(c => c.Candidat)
-                .ThenInclude(ca => ca.Utilisateur)
+                .Include(c => c.Offre).ThenInclude(o => o.Entreprise)
+                .Include(c => c.Candidat).ThenInclude(ca => ca.Utilisateur)
                 .Include(c => c.AnalyseCV)
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (candidature == null) return null;
 
-            // Deserialize the FormulaireResponses JSON
-            object parsedResponses = null;
+            object? parsedResponses = null;
             if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
             {
                 try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
@@ -105,15 +102,15 @@ namespace Recrutement_api.Services.TenantServices
                 candidature.Id,
                 candidature.OffreId,
                 candidature.CandidatId,
-                NomCandidat = candidature.Candidat.Utilisateur.Nom,
+                NomCandidat   = candidature.Candidat.Utilisateur.Nom,
                 EmailCandidat = candidature.Candidat.Utilisateur.Email,
-                TitreOffre = candidature.Offre.Titre,
+                TitreOffre    = candidature.Offre.Titre,
                 NomEntreprise = candidature.Offre.Entreprise.Nom,
                 candidature.Statut,
                 candidature.CreeLe,
                 candidature.CvUrl,
                 FormulaireResponses = parsedResponses,
-                AnalyseCV = candidature.AnalyseCV != null ? new 
+                AnalyseCV = candidature.AnalyseCV != null ? new
                 {
                     candidature.AnalyseCV.Id,
                     candidature.AnalyseCV.Score,
@@ -125,10 +122,6 @@ namespace Recrutement_api.Services.TenantServices
                 } : null
             };
         }
-
-    public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
-{
-    Console.WriteLine($"[Direct] CandidatId reçu = {candidatId}");
 
         public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
@@ -198,5 +191,49 @@ namespace Recrutement_api.Services.TenantServices
 
             return new { id = candidature.Id, statut = nouveauStatut };
         }
+
+        // ── TICKET-024 : Classification IA ────────────────────────────────────
+        public async Task<object> ClassifyAsync(Guid candidatureId)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.AnalyseCV)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId)
+                ?? throw new KeyNotFoundException("Candidature introuvable");
+
+            var texte = candidature.AnalyseCV?.TexteExtrait ?? "";
+
+            if (string.IsNullOrWhiteSpace(texte))
+                return new { classification = "Not Qualified" };
+
+            using var http = new HttpClient();
+            var payload = new
+            {
+                texteExtrait = texte,
+                titreOffre   = candidature.Offre?.Titre ?? "",
+                description  = candidature.Offre?.Description ?? ""
+            };
+
+            var json    = System.Text.Json.JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await http.PostAsync("http://localhost:8000/ai/classify", content);
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"AI service error: {response.StatusCode}");
+
+            var resultJson = await response.Content.ReadAsStringAsync();
+            var options    = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var result     = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(resultJson, options);
+
+            if (candidature.AnalyseCV != null && result != null)
+            {
+                if (result.TryGetValue("classification", out var classif))
+                    candidature.AnalyseCV.Classification = classif?.ToString() ?? "";
+                await _context.SaveChangesAsync();
+            }
+
+            return result ?? new Dictionary<string, object> { ["classification"] = "Not Qualified" };
+        }
+        
     }
 }

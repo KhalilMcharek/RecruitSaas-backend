@@ -240,4 +240,23 @@ public class ExpertFonctionsController : ControllerBase
         }
         catch { return "application/octet-stream"; }
     }
+    [HttpGet("tenant/candidatures/{candidatureId}/avis")]
+[AllowAnonymous] // ou gardez [Authorize] selon votre auth
+public async Task<IActionResult> GetAvisByCandidature(Guid candidatureId)
+{
+    var avis = await _context.AvisExperts
+        .Include(a => a.Expert)
+        .Where(a => a.CandidatureId == candidatureId)
+        .Select(a => new {
+            id          = a.Id,
+            score       = a.Score,
+            commentaire = a.Commentaire,
+            creeLe      = a.CreeLe,
+           expertNom   = a.Expert.FirstName + " " + a.Expert.LastName,
+expertEmail = a.Expert.Email
+        })
+        .ToListAsync();
+
+    return Ok(avis);
+}
 }

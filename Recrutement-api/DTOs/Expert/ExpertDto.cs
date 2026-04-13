@@ -32,6 +32,7 @@
 
         // ── NOUVEAU : score IA depuis AnalyseCV ──
         public float? ScoreIA { get; set; }
+        public string? ResumeIA { get; set; }
     }
 
     public class FormulaireReponseDto

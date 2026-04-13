@@ -74,6 +74,7 @@ public class ExpertService
             TenantId = tenantId,
             IsInvited = true,
             IsActive = true,
+            Poste         = dto.Poste,
             TemporaryPassword = BC.HashPassword(tempPassword),
             UtilisateurId = utilisateur.Id
         };

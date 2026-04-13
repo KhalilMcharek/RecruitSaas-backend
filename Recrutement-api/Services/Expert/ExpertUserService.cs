@@ -91,6 +91,7 @@ public class ExpertUserService : IExpertService
                 Statut = c.Statut ?? "",
                 CreeLe = c.CreeLe,
                 ScoreIA = c.AnalyseCV?.Score,
+                ResumeIA = c.AnalyseCV?.Resume,
                 FormulaireResponses = responses,
 
                 // Avis de l'expert connecté
@@ -150,6 +151,7 @@ public class ExpertUserService : IExpertService
             Statut = c.Statut ?? "",
             CreeLe = c.CreeLe,
             ScoreIA = c.AnalyseCV?.Score,
+            ResumeIA = c.AnalyseCV?.Resume,
             FormulaireResponses = new(),
 
             AvisExpert = monAvis == null ? null : new AvisExpertDetailDto
