@@ -109,7 +109,7 @@ namespace Recrutement_api.Services.CandidatServices
                 OffreId             = dto.OffreId,
                 CandidatId          = candidat.Id,
                 CvUrl               = cvUrl,
-                Statut              = "Pending",
+                Statut              = "Nouvelle",
                 CreeLe              = DateTime.UtcNow,
                 FormulaireResponses = BuildFormulaireResponsesJson(dto)
             };
@@ -279,5 +279,43 @@ public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
     return await _context.Candidatures
         .AnyAsync(c => c.CandidatId == candidat.Id && c.OffreId == offreId);
 }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // GET candidature by id for candidate profile
+        // ─────────────────────────────────────────────────────────────────────
+        public async Task<object?> GetCandidatureByIdAsync(Guid candidatureId)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.Candidat)
+                    .ThenInclude(c => c.Utilisateur)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+ 
+            if (candidature == null) return null;
+ 
+            return new
+            {
+                candidature.Id,
+                candidature.Statut,
+                candidature.CvUrl,
+                candidature.CreeLe,
+                candidature.FormulaireResponses,
+                titreOffre = candidature.Offre != null ? candidature.Offre.Titre : null,
+                candidatId = candidature.Candidat != null ? candidature.Candidat.UtilisateurId : (Guid?)null,
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // PATCH candidature statut
+        // ─────────────────────────────────────────────────────────────────────
+        public async Task<bool> UpdateCandidatureStatutAsync(Guid candidatureId, string statut)
+        {
+            var candidature = await _context.Candidatures.FindAsync(candidatureId);
+            if (candidature == null) return false;
+ 
+            candidature.Statut = statut;
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

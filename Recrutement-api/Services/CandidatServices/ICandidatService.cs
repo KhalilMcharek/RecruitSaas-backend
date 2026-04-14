@@ -15,5 +15,8 @@ Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId);
 
         Task<IEnumerable<OffreResponseDto>> GetOffresAsync();
         Task<OffreResponseDto?> GetOffreDetailAsync(Guid offreId);
+
+        Task<object?> GetCandidatureByIdAsync(Guid candidatureId);
+        Task<bool> UpdateCandidatureStatutAsync(Guid candidatureId, string statut);
     }
 }
