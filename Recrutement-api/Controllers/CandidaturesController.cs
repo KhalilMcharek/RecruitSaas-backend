@@ -165,7 +165,21 @@ namespace Recrutement_api.Controllers
         public async Task<IActionResult> ExtractExperience(Guid id)
         {
             var res = await _aiService.ExtractExperienceAsync(id);
-            return Ok(res);
+            return Ok(res);}
+        /// <summary>
+        /// GET /api/candidatures/{candidatureId}/candidate-profile
+        /// Profil (CandidateProfiles) du candidat pour une candidature du tenant.
+        /// </summary>
+        [HttpGet("{candidatureId:guid}/candidate-profile")]
+        public async Task<IActionResult> GetCandidateProfile(Guid candidatureId)
+        {
+            var (success, message, data) =
+                await _candidatureService.GetCandidateProfileForTenantCandidatureAsync(candidatureId);
+
+            if (!success)
+                return Ok(new { success = false, message });
+
+            return Ok(new { success = true, data });
         }
 
         // ================= MES CANDIDATURES =================

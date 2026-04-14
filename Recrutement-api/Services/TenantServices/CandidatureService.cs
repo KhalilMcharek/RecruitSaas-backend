@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Models;
+using Recrutement_api.DTOs.Candidate;
+using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.Interfaces;
 
 namespace Recrutement_api.Services.TenantServices
@@ -11,11 +13,49 @@ namespace Recrutement_api.Services.TenantServices
     {
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
+        private readonly CandidateProfileService _profileService;
 
-        public CandidatureService(ApplicationDbContext context, ICurrentUserService currentUser)
+        public CandidatureService(
+            ApplicationDbContext context,
+            ICurrentUserService currentUser,
+            CandidateProfileService profileService)
         {
             _context = context;
             _currentUser = currentUser;
+            _profileService = profileService;
+        }
+
+        /// <summary>
+        /// Profil candidat (CandidateProfiles + Utilisateur) pour une candidature du tenant courant.
+        /// </summary>
+        public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
+            GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var candidature = await _context.Candidatures
+                .AsNoTracking()
+                .Include(c => c.Offre)
+                    .ThenInclude(o => o!.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+
+            if (candidature == null)
+                return (false, "Candidature introuvable.", null);
+
+            if (candidature.Offre?.Entreprise == null ||
+                candidature.Offre.Entreprise.TenantId != tenantId)
+                return (false, "Non autorisé.", null);
+
+            var userId = await _context.Candidats
+                .AsNoTracking()
+                .Where(c => c.Id == candidature.CandidatId)
+                .Select(c => c.UtilisateurId)
+                .FirstOrDefaultAsync();
+
+            if (userId == Guid.Empty)
+                return (false, "Candidat introuvable.", null);
+
+            return await _profileService.GetProfileAsync(userId);
         }
 
         public async Task<List<CandidatureResponseDto>> GetCandidaturesAsync(
@@ -81,6 +121,52 @@ namespace Recrutement_api.Services.TenantServices
         }
 
         public async Task<object?> GetCandidatureByIdAsync(Guid id)
+ {
+     var candidature = await _context.Candidatures
+         .Include(c => c.Offre)
+         .ThenInclude(o => o.Entreprise)
+         .Include(c => c.Candidat)
+         .ThenInclude(ca => ca.Utilisateur)
+         .Include(c => c.AnalyseCV)
+         .FirstOrDefaultAsync(c => c.Id == id);
+
+     if (candidature == null) return null;
+
+     // Deserialize the FormulaireResponses JSON
+     object parsedResponses = null;
+     if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
+     {
+         try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
+         catch { parsedResponses = candidature.FormulaireResponses; }
+     }
+
+     return new
+     {
+         candidature.Id,
+         candidature.OffreId,
+         candidature.CandidatId,
+         NomCandidat = candidature.Candidat.Utilisateur.Nom,
+         EmailCandidat = candidature.Candidat.Utilisateur.Email,
+         TitreOffre = candidature.Offre.Titre,
+         NomEntreprise = candidature.Offre.Entreprise.Nom,
+         candidature.Statut,
+         candidature.CreeLe,
+         candidature.CvUrl,
+         FormulaireResponses = parsedResponses,
+         AnalyseCV = candidature.AnalyseCV != null ? new 
+         {
+             candidature.AnalyseCV.Id,
+             candidature.AnalyseCV.Score,
+             candidature.AnalyseCV.Classification,
+             candidature.AnalyseCV.Resume,
+             candidature.AnalyseCV.Competences,
+             candidature.AnalyseCV.Experience,
+             candidature.AnalyseCV.TexteExtrait
+         } : null
+     };
+ }
+
+        public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
             var candidature = await _context.Candidatures
                 .Include(c => c.Offre).ThenInclude(o => o.Entreprise)
@@ -112,15 +198,20 @@ namespace Recrutement_api.Services.TenantServices
                 FormulaireResponses = parsedResponses,
                 AnalyseCV = candidature.AnalyseCV != null ? new
                 {
-                    candidature.AnalyseCV.Id,
-                    candidature.AnalyseCV.Score,
-                    candidature.AnalyseCV.Classification,
-                    candidature.AnalyseCV.Resume,
-                    candidature.AnalyseCV.Competences,
-                    candidature.AnalyseCV.Experience,
-                    candidature.AnalyseCV.TexteExtrait
-                } : null
-            };
+                    Id = c.Id,
+                    NomCandidat = c.Candidat.Utilisateur.Nom,
+                    EmailCandidat = c.Candidat.Utilisateur.Email,
+                    OffreId = c.OffreId,
+                    TitreOffre = c.Offre.Titre,
+                    EntrepriseId = c.Offre.EntrepriseId,
+                    NomEntreprise = c.Offre.Entreprise.Nom,
+                    Statut = c.Statut,
+                    CreeLe = c.CreeLe,
+                    ScoreIA = c.AnalyseCV != null ? c.AnalyseCV.Score : null
+                })
+                .ToListAsync();
+
+            return result;
         }
 
         public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
