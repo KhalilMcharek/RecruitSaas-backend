@@ -6,11 +6,11 @@ namespace Recrutement_api.Services.CvExtraction.Extractors
 {
     public class PdfTextExtractor : ITextExtractor
     {
-        private readonly OcrExtractor _ocrExtractor;
+       
         
         public PdfTextExtractor(OcrExtractor ocrExtractor)
         {
-            _ocrExtractor = ocrExtractor;
+           
         }
 
         public async Task<string> ExtractTextFromFileAsync(string filePath)
@@ -33,14 +33,7 @@ namespace Recrutement_api.Services.CvExtraction.Extractors
 
             string result = textBuilder.ToString().Trim();
 
-            if (!hasText || result.Length < 50)
-            {
-                // Si le document ne contient quasiment que des images ou < 50 caractères
-                // return await _ocrExtractor.ExtractTextFromFileAsync(filePath); 
-                // Note : Pour l'instant on skip l'OCR sur PDF direct car il faudrait le convertir en image. 
-                // Un OCR direct sur PDF requiert son extraction page par page en image.
-                return result; 
-            }
+         
 
             return result;
         }
