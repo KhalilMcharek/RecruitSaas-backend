@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Recrutement_api.Controllers
 {
@@ -12,64 +9,68 @@ namespace Recrutement_api.Controllers
     public class AdminLogsController : ControllerBase
     {
         private readonly string _logPath;
-       
 
-        //  Liste des fichiers de logs
+        public AdminLogsController(IWebHostEnvironment env)
+        {
+            _logPath = Path.Combine(env.ContentRootPath, "logs") + Path.DirectorySeparatorChar;
+            if (!Directory.Exists(_logPath))
+                Directory.CreateDirectory(_logPath);
+        }
+
         [HttpGet]
         public IActionResult GetLogFiles()
         {
-            if (!Directory.Exists(_logPath))
-                return NotFound("Logs folder not found.");
-
-            var files = Directory.GetFiles(_logPath)
-                                 .Select(Path.GetFileName);
-
-            return Ok(files);
+            try
+            {
+                var files = Directory.GetFiles(_logPath)
+                    .Select(Path.GetFileName)
+                    .Where(f => f != null)
+                    .OrderByDescending(f => f)
+                    .ToList();
+                return Ok(files);
+            }
+            catch (Exception ex) { return StatusCode(500, ex.Message); }
         }
 
-        //  Contenu d'un fichier avec pagination
         [HttpGet("{fileName}")]
         public IActionResult GetLogContent(string fileName, int page = 1, int pageSize = 200)
         {
-            page = Math.Max(page, 1);
-            pageSize = Math.Max(pageSize, 1);
-
-            var fullPath = Path.GetFullPath(Path.Combine(_logPath, fileName));
-
-            if (!fullPath.StartsWith(_logPath, System.StringComparison.InvariantCultureIgnoreCase))
-                return BadRequest("Invalid file path.");
-
-            if (!System.IO.File.Exists(fullPath))
-                return NotFound("File not found.");
-
-            var lines = System.IO.File.ReadLines(fullPath)
-                                      .Skip((page - 1) * pageSize)
-                                      .Take(pageSize);
-
-            return Ok(lines);
+            try
+            {
+                page     = Math.Max(page, 1);
+                pageSize = Math.Clamp(pageSize, 1, 1000);
+                var fullPath = Path.GetFullPath(Path.Combine(_logPath, fileName));
+                if (!fullPath.StartsWith(_logPath, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest("Invalid file path.");
+                if (!System.IO.File.Exists(fullPath))
+                    return NotFound($"File not found: {fileName}");
+                var lines = System.IO.File.ReadLines(fullPath)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+                return Ok(lines);
+            }
+            catch (Exception ex) { return StatusCode(500, ex.Message); }
         }
 
-        //  Filtrage par TenantId
         [HttpGet("{fileName}/filter")]
-        public IActionResult FilterByTenant(string fileName, string tenantId)
+        public IActionResult FilterByTenant(string fileName, [FromQuery] string tenantId)
         {
-            if (string.IsNullOrWhiteSpace(tenantId))
-                return BadRequest("TenantId cannot be empty.");
-
-            var fullPath = Path.GetFullPath(Path.Combine(_logPath, fileName));
-
-            if (!fullPath.StartsWith(_logPath, System.StringComparison.InvariantCultureIgnoreCase))
-                return BadRequest("Invalid file path.");
-
-            if (!System.IO.File.Exists(fullPath))
-                return NotFound("File not found.");
-
-            var filtered = System.IO.File.ReadLines(fullPath)
-                                         .Where(l => l.Contains($"TenantId\":\"{tenantId}\""));
-
-            return Ok(filtered);
+            try
+            {
+                if (string.IsNullOrWhiteSpace(tenantId))
+                    return BadRequest("TenantId cannot be empty.");
+                var fullPath = Path.GetFullPath(Path.Combine(_logPath, fileName));
+                if (!fullPath.StartsWith(_logPath, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest("Invalid file path.");
+                if (!System.IO.File.Exists(fullPath))
+                    return NotFound($"File not found: {fileName}");
+                var filtered = System.IO.File.ReadLines(fullPath)
+                    .Where(l => l.Contains(tenantId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                return Ok(filtered);
+            }
+            catch (Exception ex) { return StatusCode(500, ex.Message); }
         }
-
-        
     }
 }

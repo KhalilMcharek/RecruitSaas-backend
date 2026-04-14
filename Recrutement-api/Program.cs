@@ -15,6 +15,7 @@ using Recrutement_api.Services.AI;
 using Serilog;
 using Serilog.Events;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Email config
@@ -55,7 +56,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddHttpClient(); // Requis par CvParserService
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
-builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
+builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
 // =============================
 // SERVICES
@@ -124,6 +125,8 @@ builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>());
+
+builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();

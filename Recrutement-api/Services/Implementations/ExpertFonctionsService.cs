@@ -24,5 +24,14 @@ namespace Recrutement_api.Services.Expert.Implementations
         {
             return Task.FromResult(new AvisExpertDetailDto());
         }
+        public Task<ProfilExpertDto> GetProfilAsync(Guid expertId)
+        {
+            return Task.FromResult(new ProfilExpertDto());
+        }
+        public Task<ProfilExpertDto> UpdateProfilAsync(Guid expertId, UpdateProfilExpertDto dto)
+        {
+            return Task.FromResult(new ProfilExpertDto());
+        }
+
     }
 }

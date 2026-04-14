@@ -10,11 +10,24 @@ using Recrutement_api.Models;
 
 namespace Recrutement_api.Services.CandidatServices
 {
+    // ✅ Exception dédiée → le controller retourne 409 Conflict
+    public class AlreadyAppliedException : Exception
+    {
+        public AlreadyAppliedException() : base("Vous avez déjà postulé à cette offre.") { }
+    }
+
     public class CandidatService : ICandidatService
     {
         private readonly ApplicationDbContext _context;
         private readonly Cloudinary _cloudinary;
         private readonly ILogger<CandidatService> _logger;
+
+        // Extensions traitées comme image par Cloudinary
+        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "jpg", "jpeg", "png", "gif", "webp", "bmp",
+            "tiff", "tif", "svg", "ico", "avif", "heic", "heif"
+        };
 
         public CandidatService(
             ApplicationDbContext context,
@@ -83,28 +96,13 @@ namespace Recrutement_api.Services.CandidatServices
             var dejaPostule = await _context.Candidatures
                 .AnyAsync(c => c.OffreId == dto.OffreId && c.CandidatId == candidat.Id);
 
+            // ✅ Lance AlreadyAppliedException → interceptée par le controller → 409
             if (dejaPostule)
-                throw new Exception("Vous avez déjà postulé à cette offre.");
+                throw new AlreadyAppliedException();
 
-            // Upload CV sur Cloudinary
-            string cvUrl;
-            using (var stream = dto.Cv.OpenReadStream())
-            {
-                var uploadResult = await _cloudinary.UploadAsync(new ImageUploadParams
-                {
-                    File   = new FileDescription(dto.Cv.FileName, stream),
-                    AccessMode = "public",
-                    Type = "upload",
-                    //PublicId = "cv_" + Guid.NewGuid().ToString()
-                });
+            // Upload CV sur Cloudinary (image OU raw selon extension)
+            string cvUrl = await UploadToCloudinaryAsync(dto.Cv);
 
-                if (uploadResult.Error != null)
-                    throw new Exception(uploadResult.Error.Message);
-
-                cvUrl = uploadResult.SecureUrl.ToString();
-            }
-
-            // Persister la candidature
             var candidature = new Candidature
             {
                 Id                  = Guid.NewGuid(),
@@ -119,14 +117,55 @@ namespace Recrutement_api.Services.CandidatServices
             _context.Candidatures.Add(candidature);
             await _context.SaveChangesAsync();
 
-        
-
             return new PostulerResultDto
             {
                 Message       = "Candidature envoyée avec succès.",
                 CandidatureId = candidature.Id,
                 CvUrl         = cvUrl
             };
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Upload image OU raw selon l'extension du fichier
+        // ─────────────────────────────────────────────────────────────
+        private async Task<string> UploadToCloudinaryAsync(IFormFile file)
+        {
+            var ext      = Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant();
+            var publicId = "cv_" + Guid.NewGuid().ToString("N");
+
+            using var stream = file.OpenReadStream();
+
+            if (ImageExtensions.Contains(ext))
+            {
+                var result = await _cloudinary.UploadAsync(new ImageUploadParams
+                {
+                    File       = new FileDescription(file.FileName, stream),
+                    PublicId   = publicId,
+                    AccessMode = "public",
+                    Type       = "upload"
+                });
+
+                if (result.Error != null)
+                    throw new Exception($"Cloudinary image upload error: {result.Error.Message}");
+
+                return result.SecureUrl.ToString();
+            }
+            else
+            {
+                // PDF, DOCX, DOC, ZIP…
+                var result = await _cloudinary.UploadAsync(new RawUploadParams
+                {
+                    File       = new FileDescription(file.FileName, stream),
+                    PublicId   = publicId,
+                    AccessMode = "public",
+                    Type       = "upload"
+                });
+
+                if (result.Error != null)
+                    throw new Exception($"Cloudinary raw upload error: {result.Error.Message}");
+
+                return result.SecureUrl.ToString();
+            }
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -195,7 +234,7 @@ namespace Recrutement_api.Services.CandidatServices
         }
 
         // ─────────────────────────────────────────────────────────────
-        // Private helper
+        // Private helper : build formulaire JSON
         // ─────────────────────────────────────────────────────────────
         private string BuildFormulaireResponsesJson(PostulerDto dto)
         {
@@ -226,6 +265,57 @@ namespace Recrutement_api.Services.CandidatServices
             return responses.Count > 0
                 ? System.Text.Json.JsonSerializer.Serialize(responses)
                 : "{}";
+        }
+        // Dans ICandidatService
+
+// Dans CandidatService
+public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
+{
+    var candidat = await _context.Candidats
+        .FirstOrDefaultAsync(c => c.UtilisateurId == userId);
+
+    if (candidat == null) return false;
+
+    return await _context.Candidatures
+        .AnyAsync(c => c.CandidatId == candidat.Id && c.OffreId == offreId);
+}
+
+        // ─────────────────────────────────────────────────────────────────────
+        // GET candidature by id for candidate profile
+        // ─────────────────────────────────────────────────────────────────────
+        public async Task<object?> GetCandidatureByIdAsync(Guid candidatureId)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.Candidat)
+                    .ThenInclude(c => c.Utilisateur)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+ 
+            if (candidature == null) return null;
+ 
+            return new
+            {
+                candidature.Id,
+                candidature.Statut,
+                candidature.CvUrl,
+                candidature.CreeLe,
+                candidature.FormulaireResponses,
+                titreOffre = candidature.Offre != null ? candidature.Offre.Titre : null,
+                candidatId = candidature.Candidat != null ? candidature.Candidat.UtilisateurId : (Guid?)null,
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // PATCH candidature statut
+        // ─────────────────────────────────────────────────────────────────────
+        public async Task<bool> UpdateCandidatureStatutAsync(Guid candidatureId, string statut)
+        {
+            var candidature = await _context.Candidatures.FindAsync(candidatureId);
+            if (candidature == null) return false;
+ 
+            candidature.Statut = statut;
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

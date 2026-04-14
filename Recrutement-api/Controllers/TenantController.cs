@@ -10,6 +10,8 @@ using System.IdentityModel.Tokens.Jwt;
 using Recrutement_api.Services.TenantServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ChangePasswordDto = Recrutement_api.DTOs.Tenant.ChangePasswordDto;
+using Recrutement_api.Services;
 
 namespace Recrutement_api.Controllers
 {
@@ -21,14 +23,17 @@ namespace Recrutement_api.Controllers
         private readonly TenantService _tenantService;
         private readonly ApplicationDbContext _context;
         private readonly TenantProfileService _profileService;
+private readonly IAuthService _authService;
 
 
-        public TenantController(TenantService tenantService, ApplicationDbContext context, IWebHostEnvironment env,TenantProfileService profileService
+        public TenantController(TenantService tenantService, ApplicationDbContext context, IAuthService authService,TenantProfileService profileService
 )
         {
             _tenantService = tenantService;
             _context = context;
              _profileService = profileService;
+            _authService  = authService;    // ← ajoute ça
+
 
             
             
@@ -205,4 +210,43 @@ public async Task<IActionResult> UpdateProfile(
         return BadRequest(new { success = false, message });
 
     return Ok(new { success = true, message, data });
+}
+
+
+
+
+// 2. Remplace la méthode ChangePassword entièrement
+[HttpPost("change-password")]
+public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+{
+    var userId = GetCurrentUserId();
+    if (userId == null)
+        return Unauthorized(new { success = false, message = "Non autorisé." });
+
+    if (string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
+        string.IsNullOrWhiteSpace(dto.NewPassword)     ||
+        string.IsNullOrWhiteSpace(dto.ConfirmPassword))
+        return BadRequest(new { success = false, message = "Tous les champs sont obligatoires." });
+
+    if (dto.NewPassword != dto.ConfirmPassword)
+        return BadRequest(new { success = false, message = "Les nouveaux mots de passe ne correspondent pas." });
+
+    if (dto.NewPassword.Length < 8)
+        return BadRequest(new { success = false, message = "Le mot de passe doit contenir au moins 8 caractères." });
+
+    var utilisateur = await _context.Utilisateurs
+        .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+    if (utilisateur == null)
+        return NotFound(new { success = false, message = "Utilisateur introuvable." });
+
+    // ✅ Utilise le même VerifyPassword que AuthService
+    if (!_authService.VerifyPassword(dto.CurrentPassword, utilisateur.MotDePasseHash))
+        return BadRequest(new { success = false, message = "Mot de passe actuel incorrect." });
+
+    // ✅ Utilise le même HashPassword que AuthService
+    utilisateur.MotDePasseHash = _authService.HashPassword(dto.NewPassword);
+    await _context.SaveChangesAsync();
+
+    return Ok(new { success = true, message = "Mot de passe mis à jour avec succès." });
 }}}
