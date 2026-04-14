@@ -20,15 +20,15 @@ namespace Recrutement_api.Models
         [EmailAddress]
         public string Email { get; set; }
 
-        // Hash du mot de passe
+        
         [Required]
         public string MotDePasseHash { get; set; }
 
         public string? Prenom { get; set; }
         [Required]
         public string Nom { get; set; }
-
-        [Required]
+        
+        public string? Telephone { get; set; }
         public RoleUtilisateur Role { get; set; }
 
         public bool EstActif { get; set; } = true;
