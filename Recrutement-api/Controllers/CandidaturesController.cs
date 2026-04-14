@@ -210,5 +210,71 @@ namespace Recrutement_api.Controllers
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
             catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
         }
+
+        // ================= AVATAR INTERVIEW =================
+
+        [HttpGet("{id}/interview/context")]
+        public async Task<IActionResult> GetInterviewContext(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Candidat)
+                    .ThenInclude(c => c.Utilisateur)
+                .Include(c => c.Offre)
+                    .ThenInclude(o => o.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            var candidatNom = candidature.Candidat?.Utilisateur != null
+                ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
+                : "Candidat";
+
+            return Ok(new
+            {
+                candidatureId = candidature.Id,
+                sessionId = candidature.Id, // session = candidature pour la V1
+                candidateName = candidatNom,
+                candidateEmail = candidature.Candidat?.Utilisateur?.Email,
+                jobTitle = candidature.Offre?.Titre ?? "Poste",
+                companyName = candidature.Offre?.Entreprise?.Nom ?? "RecruitSaaS",
+                status = candidature.Statut
+            });
+        }
+
+        [HttpPost("{id}/interview/start")]
+        public async Task<IActionResult> StartInterview(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Candidat)
+                    .ThenInclude(c => c.Utilisateur)
+                .Include(c => c.Offre)
+                    .ThenInclude(o => o.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            // Passage explicite en phase entretien dans le pipeline.
+            if (!string.Equals(candidature.Statut, "Entretien", StringComparison.OrdinalIgnoreCase))
+            {
+                candidature.Statut = "Entretien";
+                await _context.SaveChangesAsync();
+            }
+
+            var candidatNom = candidature.Candidat?.Utilisateur != null
+                ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
+                : "Candidat";
+
+            return Ok(new
+            {
+                interviewSessionId = candidature.Id,
+                candidatureId = candidature.Id,
+                status = candidature.Statut,
+                candidateName = candidatNom,
+                jobTitle = candidature.Offre?.Titre ?? "Poste",
+                companyName = candidature.Offre?.Entreprise?.Nom ?? "RecruitSaaS"
+            });
+        }
     }
 }
