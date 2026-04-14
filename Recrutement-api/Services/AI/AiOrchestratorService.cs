@@ -37,12 +37,13 @@ namespace Recrutement_api.Services.AI
             IConfiguration configuration,
             ILogger<AiOrchestratorService> logger)
         {
-            _dbContext = dbContext;
+            _dbContext           = dbContext;
             _cvExtractionService = cvExtractionService;
-            _httpClient = httpClient;
-            _configuration = configuration;
-            _logger = logger;
+            _httpClient          = httpClient;
+            _logger              = logger;
         }
+
+        // Helpers 
 
         private async Task<AnalyseCV> EnsureTextExtractedAsync(Guid candidatureId)
         {
@@ -52,13 +53,11 @@ namespace Recrutement_api.Services.AI
                 .FirstOrDefaultAsync(c => c.Id == candidatureId);
 
             if (candidature == null)
-            {
                 throw new Exception("Candidature introuvable");
-            }
 
             if (candidature.AnalyseCV == null || string.IsNullOrWhiteSpace(candidature.AnalyseCV.TexteExtrait))
             {
-                _logger.LogInformation($"Text not found for candidature {candidatureId}. Extracting CV text...");
+                _logger.LogInformation($"Texte absent pour {candidatureId}. Extraction en cours...");
                 return await _cvExtractionService.ProcessCvAsync(candidatureId);
             }
 
@@ -68,7 +67,7 @@ namespace Recrutement_api.Services.AI
         private async Task<T> PostToAiAsync<T>(string endpoint, object payload)
         {
             var jsonPayload = JsonSerializer.Serialize(payload);
-            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+            var content     = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
             HttpResponseMessage response;
             try
@@ -85,34 +84,25 @@ namespace Recrutement_api.Services.AI
             }
 
             var responseString = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                var code = (int)response.StatusCode;
-                var logBody = responseString.Length > 2000 ? responseString[..2000] : responseString;
-                _logger.LogWarning("IA POST {Endpoint} → HTTP {Code}: {Body}", endpoint, code, logBody);
-                throw new AiUpstreamException(
-                    code,
-                    responseString,
-                    $"Erreur du service IA sur « {endpoint} » (HTTP {code}).");
-            }
-
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            return JsonSerializer.Deserialize<T>(responseString, options)
-                   ?? throw new InvalidOperationException($"Réponse IA vide ou invalide pour « {endpoint} ».");
+            var options        = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return JsonSerializer.Deserialize<T>(responseString, options);
         }
 
+        //  Score de matching technique (TICKET-026) 
+        // Mesure la pertinence des comp�tences techniques � ind�pendant du niveau s�niorit�
         public async Task<object> CalculateScoreAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
-            var offre = (await _dbContext.Candidatures.Include(c => c.Offre).FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
+            var offre   = (await _dbContext.Candidatures
+                .Include(c => c.Offre)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
 
             var payload = new
             {
                 texteExtrait = analyse.TexteExtrait,
-                titreOffre = offre?.Titre,
-                description = offre?.Description,
-                typeContrat = offre?.TypeContrat.ToString(),
-                groqApiKey = ResolveGroqApiKey()
+                titreOffre   = offre?.Titre,
+                description  = offre?.Description,
+                typeContrat  = offre?.TypeContrat.ToString()
             };
 
             var aiResult = await PostToAiAsync<AiScoreResponse>("score", payload);
@@ -164,26 +154,33 @@ namespace Recrutement_api.Services.AI
             };
         }
 
+        //  Classification (TICKET-024) 
+        // Qualified / Not Qualified / Over Qualified
+        // IND�PENDANT du score :
+        // Score        = pertinence des comp�tences techniques (0-100)
+        //  Classification = ad�quation du niveau s�niorit� au poste
+        //    Over Qualified : candidat trop senior (ex: senior 5ans pour poste junior)
+        //    Not Qualified  : manque de comp�tences ou d'exp�rience
+        //    Qualified      : niveau correspond au poste
         public async Task<object> ClassifyCandidateAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
-            var offre = (await _dbContext.Candidatures.Include(c => c.Offre).FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
+            var offre   = (await _dbContext.Candidatures
+                .Include(c => c.Offre)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
 
             var payload = new
             {
                 texteExtrait = analyse.TexteExtrait,
-                groqApiKey = ResolveGroqApiKey(),
-                titreOffre = offre?.Titre,
-                description = offre?.Description,
-                typeContrat = offre?.TypeContrat.ToString(),
-                score = analyse.Score
+                titreOffre   = offre?.Titre,
+                description  = offre?.Description,
+                typeContrat  = offre?.TypeContrat.ToString()
             };
 
-            var aiResult = await PostToAiAsync<AiMatchClassifyResponse>("classify", payload);
-            var label = string.IsNullOrWhiteSpace(aiResult.Classification) ? "Not Qualified" : aiResult.Classification.Trim();
-            if (label != "Qualified" && label != "Not Qualified" && label != "Over Qualified")
-                label = "Not Qualified";
-            analyse.Classification = label;
+            var aiResult = await PostToAiAsync<AiClassifyResponse>("classify", payload);
+
+            // Sauvegarde sans toucher au score
+            analyse.Classification = aiResult.Classification;
             _dbContext.AnalysesCV.Update(analyse);
             await _dbContext.SaveChangesAsync();
 
@@ -195,20 +192,13 @@ namespace Recrutement_api.Services.AI
             };
         }
 
+        //  R�sum� automatique (TICKET-025) 
         public async Task<object> SummarizeCvAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
             var offre = (await _dbContext.Candidatures.Include(c => c.Offre).FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
 
-            object payload = new
-            {
-                texteExtrait = analyse.TexteExtrait,
-                groqApiKey = ResolveGroqApiKey(),
-                titreOffre = offre?.Titre,
-                description = offre?.Description,
-                typeContrat = offre?.TypeContrat.ToString()
-            };
-
+            var payload  = new { texteExtrait = analyse.TexteExtrait };
             var aiResult = await PostToAiAsync<AiSummaryResponse>("summarize", payload);
 
             analyse.Resume = aiResult.Summary;
@@ -218,18 +208,14 @@ namespace Recrutement_api.Services.AI
             return new { summary = analyse.Resume };
         }
 
+        // Extraction de comp�tences (TICKET-023)
         public async Task<object> ExtractCompetencesAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
 
-            var payload = new
-            {
-                texteExtrait = analyse.TexteExtrait
-            };
-
+            var payload  = new { texteExtrait = analyse.TexteExtrait };
             var aiResult = await PostToAiAsync<AiSkillsResponse>("extract-skills", payload);
 
-            // Storing as JSON string or joining based on how AnalyseCV.Competences is typed (it's string?)
             analyse.Competences = JsonSerializer.Serialize(aiResult.Skills);
             _dbContext.AnalysesCV.Update(analyse);
             await _dbContext.SaveChangesAsync();
@@ -237,15 +223,12 @@ namespace Recrutement_api.Services.AI
             return new { skills = aiResult.Skills };
         }
 
+        //  Extraction d'exp�rience (TICKET-023) 
         public async Task<object> ExtractExperienceAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
 
-            var payload = new
-            {
-                texteExtrait = analyse.TexteExtrait
-            };
-
+            var payload  = new { texteExtrait = analyse.TexteExtrait };
             var aiResult = await PostToAiAsync<AiExperienceResponse>("extract-experience", payload);
 
             analyse.Experience = JsonSerializer.Serialize(aiResult.Experiences);
@@ -255,43 +238,48 @@ namespace Recrutement_api.Services.AI
             return new { experiences = aiResult.Experiences };
         }
 
-        private string ResolveGroqApiKey()
+        // Extraction des entreprises cit�es (TICKET-023)
+        public async Task<object> ExtractCompaniesAsync(Guid candidatureId)
         {
-            var groqKey = _configuration["Groq:ApiKey"];
-            if (string.IsNullOrWhiteSpace(groqKey))
-                groqKey = Environment.GetEnvironmentVariable("GROQ_API_KEY");
-            if (string.IsNullOrWhiteSpace(groqKey))
-                groqKey = DevGroqApiKeyFallback;
-            return groqKey;
+            var analyse = await EnsureTextExtractedAsync(candidatureId);
+
+            var payload  = new { texteExtrait = analyse.TexteExtrait };
+            var aiResult = await PostToAiAsync<AiCompaniesResponse>("extract-companies", payload);
+
+            return new { companies = aiResult.Companies };
         }
 
-        // Response DTOs
+        // DTOs de r�ponse 
+
         private class AiScoreResponse
         {
             public float Score { get; set; }
-            public float Technical { get; set; }
-            public float Experience { get; set; }
-            [JsonPropertyName("domainFit")]
-            public float DomainFit { get; set; }
-        }
-        private class AiMatchClassifyResponse
-        {
-            public string Classification { get; set; } = "";
-            public string? Reason { get; set; }
-            [JsonPropertyName("candidateJobType")]
-            public string? CandidateJobType { get; set; }
         }
 
-        private class AiProfilClassifyResponse
+        private class AiClassifyResponse
         {
-            public string Domain { get; set; } = "";
-            [JsonPropertyName("experienceLevel")]
-            public string ExperienceLevel { get; set; } = "";
-            [JsonPropertyName("jobType")]
-            public string JobType { get; set; } = "";
+            // "Qualified" | "Not Qualified" | "Over Qualified"
+            public string Classification { get; set; } = string.Empty;
         }
-        private class AiSummaryResponse { public string Summary { get; set; } }
-        private class AiSkillsResponse { public string[] Skills { get; set; } }
-        private class AiExperienceResponse { public object[] Experiences { get; set; } }
+
+        private class AiSummaryResponse
+        {
+            public string Summary { get; set; } = string.Empty;
+        }
+
+        private class AiSkillsResponse
+        {
+            public string[] Skills { get; set; } = Array.Empty<string>();
+        }
+
+        private class AiExperienceResponse
+        {
+            public object[] Experiences { get; set; } = Array.Empty<object>();
+        }
+
+        private class AiCompaniesResponse
+        {
+            public object[] Companies { get; set; } = Array.Empty<object>();
+        }
     }
 }

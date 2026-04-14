@@ -24,5 +24,9 @@ namespace Recrutement_api.Services.Interfaces
 
         /// <summary>Soumettre ou mettre à jour un avis (upsert par expertId + candidatureId).</summary>
         Task<AvisExpertDetailDto> SoumettreAvisAsync(Guid expertId, SoumettreAvisDto dto);
+
+        Task<ProfilExpertDto> GetProfilAsync(Guid expertId);
+        Task<ProfilExpertDto> UpdateProfilAsync(Guid expertId, UpdateProfilExpertDto dto);
     }
+    
 } 

@@ -13,6 +13,7 @@ public class Expert
     public bool   IsInvited { get; set; } = true;
     public string? TemporaryPassword { get; set; }
     public string? Poste    { get; set; }
+    public string? Phone { get; set; }
     public DateTime CreeLe    { get; set; } = DateTime.UtcNow;
     public ExpertRole   Role      { get; set; } = ExpertRole.Evaluator;
     public ExpertStatus Status    { get; set; } = ExpertStatus.Pending;

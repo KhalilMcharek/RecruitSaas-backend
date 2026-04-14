@@ -12,8 +12,13 @@ using Recrutement_api.Data;
 namespace Recrutement_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
+<<<<<<<< HEAD:Recrutement-api/Migrations/20260409221638_initial.Designer.cs
     [Migration("20260409221638_initial")]
     partial class initial
+========
+    [Migration("20260409162009_InitialCreate")]
+    partial class InitialCreate
+>>>>>>>> khalil:Recrutement-api/Migrations/20260409162009_InitialCreate.Designer.cs
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

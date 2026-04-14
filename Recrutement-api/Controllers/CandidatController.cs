@@ -1,22 +1,10 @@
-using CloudinaryDotNet;
-using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Recrutement_api.Data;
-using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.Candidat;
 using Recrutement_api.DTOs.Candidate;
-using Recrutement_api.DTOs.Offre;
-using Recrutement_api.Models;
 using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.CandidatServices;
-using Recrutement_api.Services.CvExtraction;
-using Recrutement_api.Services.Interfaces;
 using System.Security.Claims;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Recrutement_api.Controllers
 {
@@ -26,53 +14,14 @@ namespace Recrutement_api.Controllers
     public class CandidatController : ControllerBase
     {
         private readonly ICandidatService _candidatService;
-        private readonly ICvExtractionService _cvExtractionService;
-        private readonly ILogger<CandidatController> _logger;
-        private readonly IOffreService _offreService;
-        private readonly IWebHostEnvironment _env;
-        private readonly ApplicationDbContext _context;
-        private readonly Cloudinary _cloudinary;
         private readonly CandidateProfileService _profileService;
-        // Extensions d'images reconnues par Cloudinary nativement
-        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg", "ico", "avif", "heic", "heif"
-        };
-
-        // Extensions qui doivent TOUJOURS être traitées comme raw
-        private static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "pdf", "docx", "doc", "odt", "rtf", "txt",
-            "zip", "rar", "7z", "tar", "gz",
-            "xlsx", "xls", "pptx", "ppt",
-            "csv", "json", "xml"
-        };
 
         public CandidatController(
             ICandidatService candidatService,
-            ICvExtractionService cvExtractionService,
-            ILogger<CandidatController> logger,
-            ApplicationDbContext context,
-            IOptions<CloudinarySettings> cloudinaryConfig,
-            IOffreService offreService,
-            IWebHostEnvironment env,
-            CandidateProfileService profileService)  // ← AJOUTÉ pour accès wwwroot
+            CandidateProfileService profileService)
         {
             _candidatService = candidatService;
-            _cvExtractionService = cvExtractionService;
-            _logger = logger;
-            _context = context;
-            _offreService = offreService;
-            _env = env;
             _profileService = profileService;
-
-            var account = new Account(
-                cloudinaryConfig.Value.CloudName,
-                cloudinaryConfig.Value.ApiKey,
-                cloudinaryConfig.Value.ApiSecret
-            );
-
-            _cloudinary = new Cloudinary(account);
         }
 
         // ─────────────────────────────────────────────
@@ -189,70 +138,41 @@ namespace Recrutement_api.Controllers
             return Ok(new { success = true, message, data });
         }
         // ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────
-        // GET /api/candidatures/{id}
-        // Retourne le détail d'une candidature pour la vue profil candidat
-        // Accessible par les recruteurs (Tenant) et les experts
-        // ─────────────────────────────────────────────────────────────────────
+        // GET candidature by id
+        // ─────────────────────────────────────────────────────────────
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
         {
-            var candidature = await _context.Candidatures
-                .Include(c => c.Offre)
-                .Include(c => c.Candidat)
-                    .ThenInclude(c => c.Utilisateur)
-                .FirstOrDefaultAsync(c => c.Id == id);
- 
+            var candidature = await _candidatService.GetCandidatureByIdAsync(id);
             if (candidature == null)
                 return NotFound(new { message = "Candidature introuvable." });
- 
-            return Ok(new
-            {
-                candidature.Id,
-                candidature.Statut,
-                candidature.CvUrl,
-                candidature.CreeLe,
-                candidature.FormulaireResponses,
- 
-                // Titre de l'offre liée
-                titreOffre = candidature.Offre != null ? candidature.Offre.Titre : null,
- 
-                // ⚠️ IMPORTANT : on retourne l'UtilisateurId du candidat
-                // C'est ce que le frontend utilise pour appeler GET /api/candidat/{candidatId}/profile
-                candidatId = candidature.Candidat != null
-                                 ? candidature.Candidat.UtilisateurId
-                                 : (Guid?)null,
-            });
+
+            return Ok(candidature);
         }
- 
-        // ─────────────────────────────────────────────────────────────────────
-        // PATCH /api/candidatures/{id}/statut
-        // Met à jour le statut d'une candidature
-        // ─────────────────────────────────────────────────────────────────────
+
+        // ─────────────────────────────────────────────────────────────
+        // PATCH candidature statut
+        // ─────────────────────────────────────────────────────────────
         [HttpPatch("{id:guid}/statut")]
         public async Task<IActionResult> UpdateStatut(Guid id, [FromBody] UpdateStatutDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Statut))
                 return BadRequest(new { message = "Statut invalide." });
- 
+
             var allowed = new[] { "Nouvelle", "En cours", "Acceptée", "Refusée" };
             if (!allowed.Contains(dto.Statut))
                 return BadRequest(new { message = $"Statut non reconnu. Valeurs autorisées : {string.Join(", ", allowed)}" });
- 
-            var candidature = await _context.Candidatures.FindAsync(id);
-            if (candidature == null)
+
+            var success = await _candidatService.UpdateCandidatureStatutAsync(id, dto.Statut);
+            if (!success)
                 return NotFound(new { message = "Candidature introuvable." });
- 
-            candidature.Statut = dto.Statut;
-            await _context.SaveChangesAsync();
- 
-            _logger.LogInformation("✅ Statut candidature {id} → {statut}", id, dto.Statut);
+
             return Ok(new { message = "Statut mis à jour.", statut = dto.Statut });
         }
     }
- 
-    // DTO pour le PATCH statut
+
     public class UpdateStatutDto
     {
         public string Statut { get; set; } = "";
-    }}
+    }
+}
