@@ -1,6 +1,5 @@
 ﻿// Services/AdminService.cs
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.DTOs.TenantRequest;
@@ -15,11 +14,16 @@ namespace Recrutement_api.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IAuthService _authService;
 
-        public AdminService(ApplicationDbContext context, IWebHostEnvironment webHostEnvironment)
+        public AdminService(
+            ApplicationDbContext context,
+            IWebHostEnvironment webHostEnvironment,
+            IAuthService authService)
         {
             _context = context;
             _webHostEnvironment = webHostEnvironment;
+            _authService = authService;
         }
 
         // ============================================================
@@ -245,26 +249,70 @@ namespace Recrutement_api.Services
             else
                 query = query.Where(t => t.Statut == TenantStatus.Approved);
 
-            var tenants = await query
+            var tenantEntities = await query
                 .OrderByDescending(t => t.CreeLe)
-                .Select(t => new TenantListDto
-                {
-                    CompanyName = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.Nom).FirstOrDefault() ?? string.Empty,
-                    RNE = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.RNE).FirstOrDefault() ?? string.Empty,
-                    Owner = t.Utilisateur != null ? t.Utilisateur.Nom : null,
-                    WorkEmail = t.Utilisateur != null ? t.Utilisateur.Email : null,
-                    Phone = null,
-                    Industry = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.Secteur).FirstOrDefault() ?? string.Empty,
-                    LogoUrl = t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.LogoUrl).FirstOrDefault(),
-                    ApprovedAt = t.CreeLe,
-                    ActiveJobs = _context.OffresEmploi
-                        .Count(o => o.Entreprise != null && o.Entreprise.RNE != null &&
-                                    o.Entreprise.RNE == (t.Entreprises.OrderBy(e => e.CreeLe).Select(e => e.RNE).FirstOrDefault() ?? string.Empty)),
-                    Status = t.Statut.ToString()
-                })
                 .ToListAsync();
 
-            return tenants;
+            if (tenantEntities.Count == 0)
+                return new List<TenantListDto>();
+
+            var tenantIds = tenantEntities.Select(t => t.Id).ToList();
+            var profiles = await _context.TenantProfiles
+                .Where(p => tenantIds.Contains(p.TenantId))
+                .ToDictionaryAsync(p => p.TenantId);
+
+            var rneList = tenantEntities
+                .Select(t => t.Entreprises?.OrderBy(e => e.CreeLe).FirstOrDefault()?.RNE)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct()
+                .ToList();
+
+            var jobCountsByRne = await _context.OffresEmploi
+                .AsNoTracking()
+                .Where(o => o.Entreprise != null && o.Entreprise.RNE != null && rneList.Contains(o.Entreprise.RNE))
+                .GroupBy(o => o.Entreprise!.RNE!)
+                .Select(g => new { Rne = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Rne, x => x.Count);
+
+            var list = new List<TenantListDto>(tenantEntities.Count);
+            foreach (var t in tenantEntities)
+            {
+                var firstCo = t.Entreprises?.OrderBy(e => e.CreeLe).FirstOrDefault();
+                var rne = firstCo?.RNE ?? string.Empty;
+                profiles.TryGetValue(t.Id, out var prof);
+
+                var companyLogo = firstCo?.LogoUrl;
+                var profileLogo = prof?.LogoUrl;
+                var logo = !string.IsNullOrWhiteSpace(profileLogo) ? profileLogo : companyLogo;
+
+                jobCountsByRne.TryGetValue(rne, out var jobs);
+
+                list.Add(new TenantListDto
+                {
+                    TenantId = t.Id,
+                    TenantDisplayName = BuildTenantDisplayName(t.Utilisateur),
+                    CompanyName = firstCo?.Nom ?? string.Empty,
+                    RNE = rne,
+                    Owner = t.Utilisateur?.Nom,
+                    WorkEmail = t.Utilisateur?.Email,
+                    Phone = prof?.Phone,
+                    Industry = firstCo?.Secteur ?? string.Empty,
+                    LogoUrl = logo,
+                    ApprovedAt = t.CreeLe,
+                    ActiveJobs = jobs,
+                    Status = t.Statut.ToString(),
+                    JobTitle = prof?.JobTitle,
+                    Website = prof?.Website,
+                    Linkedin = prof?.Linkedin,
+                    Twitter = prof?.Twitter,
+                    HiringStatus = prof?.HiringStatus,
+                    WorkTypesJson = prof?.WorkTypesJson,
+                    TechStackJson = prof?.TechStackJson,
+                    ProfileUpdatedAt = prof?.UpdatedAt
+                });
+            }
+
+            return list;
         }
 
         // ============================================================
@@ -311,22 +359,40 @@ namespace Recrutement_api.Services
             var activeJobs = await _context.OffresEmploi
                 .CountAsync(o => o.Entreprise != null && o.Entreprise.RNE == decoded);
 
+            var tenantId = entreprise.Tenant?.Id;
+            TenantProfile? prof = null;
+            if (tenantId != null)
+                prof = await _context.TenantProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.TenantId == tenantId.Value);
+
+            var companyLogo = entreprise.LogoUrl;
+            var profileLogo = prof?.LogoUrl;
+            var logo = !string.IsNullOrWhiteSpace(profileLogo) ? profileLogo : companyLogo;
+
             return new TenantDetailDto
             {
+                TenantId = tenantId ?? Guid.Empty,
+                TenantDisplayName = BuildTenantDisplayName(entreprise.Tenant?.Utilisateur),
                 CompanyName = entreprise.Nom,
                 RNE = entreprise.RNE ?? string.Empty,
                 Owner = entreprise.Tenant?.Utilisateur?.Nom,
                 WorkEmail = entreprise.Tenant?.Utilisateur?.Email,
-                Phone = null,
+                Phone = prof?.Phone,
                 Industry = entreprise.Secteur ?? string.Empty,
                 Description = entreprise.Description,
-                LogoUrl = entreprise.LogoUrl,
+                LogoUrl = logo,
                 ApprovedAt = entreprise.Tenant?.CreeLe,
                 ActiveJobs = activeJobs,
                 Status = entreprise.Tenant?.Statut.ToString(),
                 Address = null,
-                Website = null,
-                EmployeeCount = null
+                Website = prof?.Website,
+                EmployeeCount = null,
+                JobTitle = prof?.JobTitle,
+                Linkedin = prof?.Linkedin,
+                Twitter = prof?.Twitter,
+                HiringStatus = prof?.HiringStatus,
+                WorkTypesJson = prof?.WorkTypesJson,
+                TechStackJson = prof?.TechStackJson,
+                ProfileUpdatedAt = prof?.UpdatedAt
             };
         }
 
@@ -371,7 +437,7 @@ namespace Recrutement_api.Services
         }
 
         // ============================================================
-        // CHANGER LE MOT DE PASSE — ASP.NET Core Identity PasswordHasher
+        // CHANGER LE MOT DE PASSE — même logique que AuthService (Identity + BCrypt, sans exception Base64)
         // ============================================================
         public async Task<(bool success, string message)> ChangeAdminPasswordAsync(Guid userId, AdminChangePasswordDto changePasswordDto)
         {
@@ -381,30 +447,25 @@ namespace Recrutement_api.Services
             if (utilisateur == null)
                 return (false, "Admin non trouvé");
 
-            if (!VerifyPassword(changePasswordDto.CurrentPassword, utilisateur.MotDePasseHash ?? string.Empty))
+            if (!_authService.VerifyPassword(changePasswordDto.CurrentPassword, utilisateur.MotDePasseHash ?? string.Empty))
                 return (false, "Mot de passe actuel incorrect");
 
-            utilisateur.MotDePasseHash = HashPassword(changePasswordDto.NewPassword);
+            utilisateur.MotDePasseHash = _authService.HashPassword(changePasswordDto.NewPassword);
             await _context.SaveChangesAsync();
 
             return (true, "Mot de passe mis à jour avec succès");
         }
 
-        // ============================================================
-        // HELPERS — ASP.NET Core Identity PasswordHasher
-        // ============================================================
-        private bool VerifyPassword(string plainPassword, string hashedPassword)
+        private static string? BuildTenantDisplayName(Utilisateur? u)
         {
-            var hasher = new PasswordHasher<object>();
-            var result = hasher.VerifyHashedPassword(null!, hashedPassword, plainPassword);
-            return result == PasswordVerificationResult.Success
-                || result == PasswordVerificationResult.SuccessRehashNeeded;
-        }
-
-        private string HashPassword(string password)
-        {
-            var hasher = new PasswordHasher<object>();
-            return hasher.HashPassword(null!, password);
+            if (u == null) return null;
+            var prenom = string.IsNullOrWhiteSpace(u.Prenom) ? null : u.Prenom.Trim();
+            var nom = string.IsNullOrWhiteSpace(u.Nom) ? null : u.Nom.Trim();
+            if (!string.IsNullOrEmpty(prenom) && !string.IsNullOrEmpty(nom))
+                return $"{prenom} {nom}";
+            if (!string.IsNullOrEmpty(nom)) return nom;
+            if (!string.IsNullOrEmpty(prenom)) return prenom;
+            return string.IsNullOrWhiteSpace(u.Email) ? null : u.Email.Trim();
         }
     }
 }

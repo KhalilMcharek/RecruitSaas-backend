@@ -17,6 +17,12 @@ using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fichier local non versionné (Groq, etc.) — voir appsettings.Local.json.example
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath, "appsettings.Local.json"),
+    optional: true,
+    reloadOnChange: true);
+
 // Email config
 builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
 builder.Configuration["EmailSettings:SmtpPort"] = "587";

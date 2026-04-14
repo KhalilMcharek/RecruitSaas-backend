@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.Services.AI;
+using System.Net.Http;
 
 
 namespace Recrutement_api.Controllers
@@ -19,6 +20,35 @@ namespace Recrutement_api.Controllers
         {
             _candidatureService = candidatureService;
             _aiService = aiService;
+        }
+
+        private IActionResult FromAiUpstream(AiUpstreamException ex)
+        {
+            var detail = ex.ResponseBody ?? string.Empty;
+            if (detail.Length > 4000)
+                detail = detail[..4000] + "…";
+            var code = ex.HttpStatus is >= 400 and <= 599 ? ex.HttpStatus : 502;
+            return StatusCode(code, new { message = ex.Message, detail });
+        }
+
+        private async Task<IActionResult> RunAi(Func<Task<object>> work)
+        {
+            try
+            {
+                return Ok(await work());
+            }
+            catch (AiUpstreamException ex)
+            {
+                return FromAiUpstream(ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(503, new
+                {
+                    message = "Impossible de joindre le service IA (réseau ou URL).",
+                    detail = ex.Message
+                });
+            }
         }
 
         /// <summary>
@@ -67,39 +97,29 @@ namespace Recrutement_api.Controllers
         // ======================================
 
         [HttpPost("{id}/ai/score")]
-        public async Task<IActionResult> CalculateScore(Guid id)
-        {
-            var res = await _aiService.CalculateScoreAsync(id);
-            return Ok(res);
-        }
+        public Task<IActionResult> CalculateScore(Guid id) =>
+            RunAi(() => _aiService.CalculateScoreAsync(id));
 
         [HttpPost("{id}/ai/classify")]
-        public async Task<IActionResult> Classify(Guid id)
-        {
-            var res = await _aiService.ClassifyCandidateAsync(id);
-            return Ok(res);
-        }
+        public Task<IActionResult> Classify(Guid id) =>
+            RunAi(() => _aiService.ClassifyCandidateAsync(id));
+
+        /// <summary>Profil CV (domaine, niveau, type de poste) via IA — sans lien avec /ai/classify.</summary>
+        [HttpPost("{id}/ai/profile")]
+        public Task<IActionResult> ProfileFromCv(Guid id) =>
+            RunAi(() => _aiService.ProfileFromCvAsync(id));
 
         [HttpPost("{id}/ai/summarize")]
-        public async Task<IActionResult> Summarize(Guid id)
-        {
-            var res = await _aiService.SummarizeCvAsync(id);
-            return Ok(res);
-        }
+        public Task<IActionResult> Summarize(Guid id) =>
+            RunAi(() => _aiService.SummarizeCvAsync(id));
 
         [HttpPost("{id}/ai/extract-skills")]
-        public async Task<IActionResult> ExtractSkills(Guid id)
-        {
-            var res = await _aiService.ExtractCompetencesAsync(id);
-            return Ok(res);
-        }
+        public Task<IActionResult> ExtractSkills(Guid id) =>
+            RunAi(() => _aiService.ExtractCompetencesAsync(id));
 
         [HttpPost("{id}/ai/extract-experience")]
-        public async Task<IActionResult> ExtractExperience(Guid id)
-        {
-            var res = await _aiService.ExtractExperienceAsync(id);
-            return Ok(res);
-        }
+        public Task<IActionResult> ExtractExperience(Guid id) =>
+            RunAi(() => _aiService.ExtractExperienceAsync(id));
 
 [HttpGet("mes-candidatures")]
         public async Task<IActionResult> GetMesCandidatures()
@@ -120,4 +140,5 @@ namespace Recrutement_api.Controllers
             var result = await _candidatureService.GetMesCandidaturesDirectAsync(candidatId);
             return Ok(result);
         }
-    }}
+    }
+}

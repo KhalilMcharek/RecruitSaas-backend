@@ -145,29 +145,30 @@ namespace Recrutement_api.Services.TenantServices
             };
         }
 
-    public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
-{
-    Console.WriteLine($"[Direct] CandidatId reçu = {candidatId}");
-
-    var result = await _context.Candidatures
-        .Where(c => c.CandidatId == candidatId)
-        .OrderByDescending(c => c.CreeLe)
-        .Select(c => new CandidatureResponseDto
+        public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
-            Id            = c.Id,
-            NomCandidat   = c.Candidat.Utilisateur.Nom,
-            EmailCandidat = c.Candidat.Utilisateur.Email,
-            OffreId       = c.OffreId,
-            TitreOffre    = c.Offre.Titre,
-            EntrepriseId  = c.Offre.EntrepriseId,
-            NomEntreprise = c.Offre.Entreprise.Nom,
-            Statut        = c.Statut,
-            CreeLe        = c.CreeLe,
-            ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
-        })
-        .ToListAsync();
+            Console.WriteLine($"[Direct] CandidatId reçu = {candidatId}");
 
-    Console.WriteLine($"[Direct] Résultats = {result.Count}");
-    return result;
-}}
+            var result = await _context.Candidatures
+                .Where(c => c.CandidatId == candidatId)
+                .OrderByDescending(c => c.CreeLe)
+                .Select(c => new CandidatureResponseDto
+                {
+                    Id = c.Id,
+                    NomCandidat = c.Candidat.Utilisateur.Nom,
+                    EmailCandidat = c.Candidat.Utilisateur.Email,
+                    OffreId = c.OffreId,
+                    TitreOffre = c.Offre.Titre,
+                    EntrepriseId = c.Offre.EntrepriseId,
+                    NomEntreprise = c.Offre.Entreprise.Nom,
+                    Statut = c.Statut,
+                    CreeLe = c.CreeLe,
+                    ScoreIA = c.AnalyseCV != null ? c.AnalyseCV.Score : null
+                })
+                .ToListAsync();
+
+            Console.WriteLine($"[Direct] Résultats = {result.Count}");
+            return result;
+        }
+    }
 }
