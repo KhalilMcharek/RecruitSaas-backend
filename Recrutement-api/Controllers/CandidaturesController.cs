@@ -24,8 +24,8 @@ namespace Recrutement_api.Controllers
             ApplicationDbContext context)
         {
             _candidatureService = candidatureService;
-            _aiService          = aiService;
-            _context            = context;
+            _aiService = aiService;
+            _context = context;
         }
 
         [HttpGet]
@@ -77,16 +77,16 @@ namespace Recrutement_api.Controllers
                 .OrderByDescending(a => a.CreeLe)
                 .Select(a => new
                 {
-                    id           = a.Id,
-                    expertId     = a.ExpertId,
-                    expertNom    = a.Expert != null
+                    id = a.Id,
+                    expertId = a.ExpertId,
+                    expertNom = a.Expert != null
                                     ? (a.Expert.FirstName + " " + a.Expert.LastName).Trim()
                                     : "Expert",
-                    expertPoste  = a.Expert != null ? a.Expert.Poste : null,
-                    score        = a.Score,
-                    scorePct     = (int)Math.Round(a.Score * 20),  // /5 → /100
-                    commentaire  = a.Commentaire,
-                    creeLe       = a.CreeLe
+                    expertPoste = a.Expert != null ? a.Expert.Poste : null,
+                    score = a.Score,
+                    scorePct = (int)Math.Round(a.Score * 20),  // /5 → /100
+                    commentaire = a.Commentaire,
+                    creeLe = a.CreeLe
                 })
                 .ToListAsync();
 
@@ -118,12 +118,12 @@ namespace Recrutement_api.Controllers
                 .Where(a => a.OffreId == candidature.OffreId)
                 .Select(a => new
                 {
-                    expertId  = a.ExpertId,
-                    nom       = a.Expert != null
+                    expertId = a.ExpertId,
+                    nom = a.Expert != null
                                  ? (a.Expert.FirstName + " " + a.Expert.LastName).Trim()
                                  : "Expert",
-                    poste     = a.Expert != null ? a.Expert.Poste : null,
-                    isActive  = a.Expert != null ? a.Expert.IsActive : false,
+                    poste = a.Expert != null ? a.Expert.Poste : null,
+                    isActive = a.Expert != null ? a.Expert.IsActive : false,
                     assigneLe = a.AssigneLe
                 })
                 .ToListAsync();
@@ -134,31 +134,39 @@ namespace Recrutement_api.Controllers
         // ================= AI =================
 
         [HttpPost("{id}/ai/score")]
-        public Task<IActionResult> CalculateScore(Guid id) =>
-            RunAi(() => _aiService.CalculateScoreAsync(id));
+        public async Task<IActionResult> CalculateScore(Guid id)
+        {
+            var res = await _aiService.CalculateScoreAsync(id);
+            return Ok(res);
+        }
 
         [HttpPost("{id}/ai/classify")]
-        public Task<IActionResult> Classify(Guid id) =>
-            RunAi(() => _aiService.ClassifyCandidateAsync(id));
-
-        /// <summary>Profil CV (domaine, niveau, type de poste) via IA — sans lien avec /ai/classify.</summary>
-        [HttpPost("{id}/ai/profile")]
-        public Task<IActionResult> ProfileFromCv(Guid id) =>
-            RunAi(() => _aiService.ProfileFromCvAsync(id));
+        public async Task<IActionResult> Classify(Guid id)
+        {
+            var res = await _aiService.ClassifyCandidateAsync(id);
+            return Ok(res);
+        }
 
         [HttpPost("{id}/ai/summarize")]
-        public Task<IActionResult> Summarize(Guid id) =>
-            RunAi(() => _aiService.SummarizeCvAsync(id));
+        public async Task<IActionResult> Summarize(Guid id)
+        {
+            var res = await _aiService.SummarizeCvAsync(id);
+            return Ok(res);
+        }
 
         [HttpPost("{id}/ai/extract-skills")]
-        public Task<IActionResult> ExtractSkills(Guid id) =>
-            RunAi(() => _aiService.ExtractCompetencesAsync(id));
+        public async Task<IActionResult> ExtractSkills(Guid id)
+        {
+            var res = await _aiService.ExtractCompetencesAsync(id);
+            return Ok(res);
+        }
 
         [HttpPost("{id}/ai/extract-experience")]
         public async Task<IActionResult> ExtractExperience(Guid id)
         {
             var res = await _aiService.ExtractExperienceAsync(id);
-            return Ok(res);}
+            return Ok(res);
+        }
         /// <summary>
         /// GET /api/candidatures/{candidatureId}/candidate-profile
         /// Profil (CandidateProfiles) du candidat pour une candidature du tenant.
@@ -215,7 +223,7 @@ namespace Recrutement_api.Controllers
                 return Ok(result);
             }
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
-            catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
         }
     }
 }
