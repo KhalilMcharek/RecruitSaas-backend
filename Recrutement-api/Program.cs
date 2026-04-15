@@ -50,19 +50,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     )
 );
 
-
-
 // Services d'extraction de CV
-builder.Services.AddHttpClient(); // Requis par CvParserService
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
-// =============================
-// SERVICES
-// =============================
-
-// Controllers + JSON
 
 builder.Services.AddCors(options =>
 {
@@ -106,7 +99,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient(); // ← pour le proxy Cloudinary
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -130,7 +123,7 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
-builder.Services.AddScoped<ReportService>();
+// builder.Services.AddScoped<ReportService>(); // TODO: à activer quand ReportService sera créé
 
 var app = builder.Build();
 
@@ -144,9 +137,6 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
-
-
-
 
 app.UseStaticFiles(new StaticFileOptions
 {
