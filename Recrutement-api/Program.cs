@@ -130,6 +130,7 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
+builder.Services.AddScoped<ReportService>();
 
 var app = builder.Build();
 

@@ -18,6 +18,7 @@ namespace Recrutement_api.DTOs.Candidature
 
         public string Statut { get; set; }
         public DateTime CreeLe { get; set; }
+        public string CvUrl { get; set; }
 
         // AI Score (nullable - pas toutes les candidatures ont une analyse)
         public float? ScoreIA { get; set; }

@@ -36,10 +36,11 @@ namespace Recrutement_api.Controllers
             [FromQuery] int? scoreMin,
             [FromQuery] int? scoreMax,
             [FromQuery] DateTime? dateDebut,
-            [FromQuery] DateTime? dateFin)
+            [FromQuery] DateTime? dateFin,
+            [FromQuery] Guid? offreId)
         {
             var result = await _candidatureService.GetCandidaturesAsync(
-                entrepriseId, nomOffre, statut, scoreMin, scoreMax, dateDebut, dateFin);
+                entrepriseId, nomOffre, statut, scoreMin, scoreMax, dateDebut, dateFin, offreId);
             return Ok(result);
         }
 
