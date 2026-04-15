@@ -282,7 +282,7 @@ namespace Recrutement_api.Services
 
             var expertsValides = await _context.Experts
                      .Where(e => dto.ExpertIds.Contains(e.Id)
-                              && e.EntrepriseId == offre.EntrepriseId)
+                              && e.CompanyId == offre.EntrepriseId)
                                     .Select(e => e.Id)
                                      .ToListAsync();
             if (!expertsValides.Any())
@@ -305,6 +305,15 @@ namespace Recrutement_api.Services
                 });
             }
 
+            var expertsARetirer = offre.Assignations
+                .Where(a => !dto.ExpertIds.Contains(a.ExpertId))
+                .ToList();
+
+            foreach (var a in expertsARetirer)
+            {
+                _context.Set<AssignationExpert>().Remove(a);
+            }
+
             await _context.SaveChangesAsync();
 
             return new OffreResponseDto
@@ -316,17 +325,18 @@ namespace Recrutement_api.Services
             };
         }
 
-        public async Task<List<ExpertDto>> RechercherExpertsAsync(Guid offreId, string? search)
+        public async Task<object> RechercherExpertsAsync(Guid offreId, string? search)
         {
             var offre = await _context.OffresEmploi
                 .AsNoTracking()
+                .Include(o => o.Assignations)
                 .FirstOrDefaultAsync(o => o.Id == offreId);
 
             if (offre == null)
                 throw new Exception("Offre non trouvée");
 
             var query = _context.Experts
-                .Where(e => e.EntrepriseId == offre.EntrepriseId)
+                .Where(e => e.CompanyId == offre.EntrepriseId)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -334,22 +344,20 @@ namespace Recrutement_api.Services
                 search = search.Trim().ToLower();
 
                 query = query.Where(e =>
-                    e.Utilisateur.Nom.ToLower().Contains(search) ||
-                    e.Poste.ToLower().Contains(search));
+                    e.FirstName.ToLower().Contains(search) ||
+                    e.LastName.ToLower().Contains(search) ||
+                    (e.Poste != null && e.Poste.ToLower().Contains(search)));
             }
 
-            return await query
-                .Select(e => new ExpertDto
-                {
-                    Id = e.Id,
-                    UtilisateurId = e.UtilisateurId ?? Guid.Empty,  
-                    Nom = e.Utilisateur != null ? e.Utilisateur.Nom : string.Empty,
-                    EntrepriseId = e.EntrepriseId ?? Guid.Empty,    
-                    NomEntreprise = e.Entreprise != null ? e.Entreprise.Nom : string.Empty,
-                    Poste = e.Poste
-                })
-                .Take(10)
-                .ToListAsync();
+            var experts = await query.Take(10).ToListAsync();
+
+            return experts.Select(e => new 
+            {
+                Id = e.Id,
+                Nom = $"{e.FirstName} {e.LastName}".Trim(),
+                Poste = e.Poste,
+                EstAssigne = offre.Assignations.Any(a => a.ExpertId == e.Id)
+            }).ToList();
         }
 
         public async Task<OffreResponseDto> ModifierOffreAsync(Guid offreId, OffreUpdateDto dto)

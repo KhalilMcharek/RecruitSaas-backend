@@ -60,13 +60,16 @@ namespace Recrutement_api.Services.TenantServices
 
         public async Task<List<CandidatureResponseDto>> GetCandidaturesAsync(
             Guid? entrepriseId, string? nomOffre, string? statut,
-            int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin)
+            int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin,
+            Guid? offreId = null)
         {
             var tenantId = _currentUser.TenantId;
             var query = _context.Candidatures
                 .Where(c => c.Offre.Entreprise.TenantId == tenantId)
                 .AsQueryable();
 
+            if (offreId.HasValue)
+                query = query.Where(c => c.OffreId == offreId.Value);
             if (entrepriseId.HasValue)
                 query = query.Where(c => c.Offre.EntrepriseId == entrepriseId.Value);
             if (!string.IsNullOrWhiteSpace(nomOffre))
@@ -95,6 +98,7 @@ namespace Recrutement_api.Services.TenantServices
                     NomEntreprise = c.Offre.Entreprise.Nom,
                     Statut        = c.Statut,
                     CreeLe        = c.CreeLe,
+                    CvUrl = c.CvUrl,
                     ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
                 })
                 .ToListAsync();
@@ -160,8 +164,7 @@ namespace Recrutement_api.Services.TenantServices
              candidature.AnalyseCV.Classification,
              candidature.AnalyseCV.Resume,
              candidature.AnalyseCV.Competences,
-             candidature.AnalyseCV.Experience,
-             candidature.AnalyseCV.TexteExtrait
+             candidature.AnalyseCV.Experience
          } : null
      };
  }
