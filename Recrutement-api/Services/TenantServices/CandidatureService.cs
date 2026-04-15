@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs.Candidature;
 using Recrutement_api.Models;
+using Recrutement_api.DTOs.Candidate;
+using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.Interfaces;
 
 namespace Recrutement_api.Services.TenantServices
@@ -11,22 +13,61 @@ namespace Recrutement_api.Services.TenantServices
     {
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
+        private readonly CandidateProfileService _profileService;
 
-        public CandidatureService(ApplicationDbContext context, ICurrentUserService currentUser)
+        public CandidatureService(
+            ApplicationDbContext context,
+            ICurrentUserService currentUser,
+            CandidateProfileService profileService)
         {
-            _context = context;
-            _currentUser = currentUser;
+            _context        = context;
+            _currentUser    = currentUser;
+            _profileService = profileService;
         }
 
+        // ── Profil candidat (collègue) ────────────────────────────────────────
+        public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
+            GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var candidature = await _context.Candidatures
+                .AsNoTracking()
+                .Include(c => c.Offre).ThenInclude(o => o!.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+
+            if (candidature == null)
+                return (false, "Candidature introuvable.", null);
+
+            if (candidature.Offre?.Entreprise == null ||
+                candidature.Offre.Entreprise.TenantId != tenantId)
+                return (false, "Non autorisé.", null);
+
+            var userId = await _context.Candidats
+                .AsNoTracking()
+                .Where(c => c.Id == candidature.CandidatId)
+                .Select(c => c.UtilisateurId)
+                .FirstOrDefaultAsync();
+
+            if (userId == Guid.Empty)
+                return (false, "Candidat introuvable.", null);
+
+            return await _profileService.GetProfileAsync(userId);
+        }
+
+        // ── Liste candidatures (avec offreId du collègue + CvUrl) ─────────────
         public async Task<List<CandidatureResponseDto>> GetCandidaturesAsync(
             Guid? entrepriseId, string? nomOffre, string? statut,
-            int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin)
+            int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin,
+            Guid? offreId = null)
         {
             var tenantId = _currentUser.TenantId;
             var query = _context.Candidatures
                 .Where(c => c.Offre.Entreprise.TenantId == tenantId)
                 .AsQueryable();
 
+            if (offreId.HasValue)
+                query = query.Where(c => c.OffreId == offreId.Value);
             if (entrepriseId.HasValue)
                 query = query.Where(c => c.Offre.EntrepriseId == entrepriseId.Value);
             if (!string.IsNullOrWhiteSpace(nomOffre))
@@ -55,6 +96,7 @@ namespace Recrutement_api.Services.TenantServices
                     NomEntreprise = c.Offre.Entreprise.Nom,
                     Statut        = c.Statut,
                     CreeLe        = c.CreeLe,
+                    CvUrl         = c.CvUrl,
                     ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
                 })
                 .ToListAsync();
@@ -102,10 +144,10 @@ namespace Recrutement_api.Services.TenantServices
                 candidature.Id,
                 candidature.OffreId,
                 candidature.CandidatId,
-                NomCandidat   = candidature.Candidat.Utilisateur.Nom,
-                EmailCandidat = candidature.Candidat.Utilisateur.Email,
-                TitreOffre    = candidature.Offre.Titre,
-                NomEntreprise = candidature.Offre.Entreprise.Nom,
+                NomCandidat         = candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat       = candidature.Candidat.Utilisateur.Email,
+                TitreOffre          = candidature.Offre.Titre,
+                NomEntreprise       = candidature.Offre.Entreprise.Nom,
                 candidature.Statut,
                 candidature.CreeLe,
                 candidature.CvUrl,
@@ -117,8 +159,7 @@ namespace Recrutement_api.Services.TenantServices
                     candidature.AnalyseCV.Classification,
                     candidature.AnalyseCV.Resume,
                     candidature.AnalyseCV.Competences,
-                    candidature.AnalyseCV.Experience,
-                    candidature.AnalyseCV.TexteExtrait
+                    candidature.AnalyseCV.Experience
                 } : null
             };
         }
@@ -192,7 +233,7 @@ namespace Recrutement_api.Services.TenantServices
             return new { id = candidature.Id, statut = nouveauStatut };
         }
 
-        // ── TICKET-024 : Classification IA ────────────────────────────────────
+        // ── Classification IA ─────────────────────────────────────────────────
         public async Task<object> ClassifyAsync(Guid candidatureId)
         {
             var candidature = await _context.Candidatures
@@ -214,10 +255,10 @@ namespace Recrutement_api.Services.TenantServices
                 description  = candidature.Offre?.Description ?? ""
             };
 
-            var json    = System.Text.Json.JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
+            var json     = System.Text.Json.JsonSerializer.Serialize(payload);
+            var content  = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
             var response = await http.PostAsync("http://localhost:8000/ai/classify", content);
+
             if (!response.IsSuccessStatusCode)
                 throw new Exception($"AI service error: {response.StatusCode}");
 
@@ -234,6 +275,5 @@ namespace Recrutement_api.Services.TenantServices
 
             return result ?? new Dictionary<string, object> { ["classification"] = "Not Qualified" };
         }
-        
     }
 }
