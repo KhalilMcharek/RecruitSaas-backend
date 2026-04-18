@@ -14,20 +14,20 @@ namespace Recrutement_api.Services.TenantServices
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
         private readonly CandidateProfileService _profileService;
+        private readonly NotificationService _notificationService; // ← AJOUTÉ
 
         public CandidatureService(
             ApplicationDbContext context,
             ICurrentUserService currentUser,
-            CandidateProfileService profileService)
+            CandidateProfileService profileService,
+            NotificationService notificationService) // ← AJOUTÉ
         {
             _context = context;
             _currentUser = currentUser;
             _profileService = profileService;
+            _notificationService = notificationService; // ← AJOUTÉ
         }
 
-        /// <summary>
-        /// Profil candidat (CandidateProfiles + Utilisateur) pour une candidature du tenant courant.
-        /// </summary>
         public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
             GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
         {
@@ -98,7 +98,7 @@ namespace Recrutement_api.Services.TenantServices
                     NomEntreprise = c.Offre.Entreprise.Nom,
                     Statut        = c.Statut,
                     CreeLe        = c.CreeLe,
-                    CvUrl = c.CvUrl,
+                    CvUrl         = c.CvUrl,
                     ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
                 })
                 .ToListAsync();
@@ -125,51 +125,48 @@ namespace Recrutement_api.Services.TenantServices
         }
 
         public async Task<object?> GetCandidatureByIdAsync(Guid id)
- {
-     var candidature = await _context.Candidatures
-         .Include(c => c.Offre)
-         .ThenInclude(o => o.Entreprise)
-         .Include(c => c.Candidat)
-         .ThenInclude(ca => ca.Utilisateur)
-         .Include(c => c.AnalyseCV)
-         .FirstOrDefaultAsync(c => c.Id == id);
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .ThenInclude(o => o.Entreprise)
+                .Include(c => c.Candidat)
+                .ThenInclude(ca => ca.Utilisateur)
+                .Include(c => c.AnalyseCV)
+                .FirstOrDefaultAsync(c => c.Id == id);
 
-     if (candidature == null) return null;
+            if (candidature == null) return null;
 
-     // Deserialize the FormulaireResponses JSON
-     object parsedResponses = null;
-     if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
-     {
-         try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
-         catch { parsedResponses = candidature.FormulaireResponses; }
-     }
+            object parsedResponses = null;
+            if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
+            {
+                try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
+                catch { parsedResponses = candidature.FormulaireResponses; }
+            }
 
-     return new
-     {
-         candidature.Id,
-         candidature.OffreId,
-         candidature.CandidatId,
-         NomCandidat = candidature.Candidat.Utilisateur.Nom,
-         EmailCandidat = candidature.Candidat.Utilisateur.Email,
-         TitreOffre = candidature.Offre.Titre,
-         NomEntreprise = candidature.Offre.Entreprise.Nom,
-         candidature.Statut,
-         candidature.CreeLe,
-         candidature.CvUrl,
-         FormulaireResponses = parsedResponses,
-         AnalyseCV = candidature.AnalyseCV != null ? new 
-         {
-             candidature.AnalyseCV.Id,
-             candidature.AnalyseCV.Score,
-             candidature.AnalyseCV.Classification,
-             candidature.AnalyseCV.Resume,
-             candidature.AnalyseCV.Competences,
-             candidature.AnalyseCV.Experience
-         } : null
-     };
- }
-
-      
+            return new
+            {
+                candidature.Id,
+                candidature.OffreId,
+                candidature.CandidatId,
+                NomCandidat       = candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat     = candidature.Candidat.Utilisateur.Email,
+                TitreOffre        = candidature.Offre.Titre,
+                NomEntreprise     = candidature.Offre.Entreprise.Nom,
+                candidature.Statut,
+                candidature.CreeLe,
+                candidature.CvUrl,
+                FormulaireResponses = parsedResponses,
+                AnalyseCV = candidature.AnalyseCV != null ? new
+                {
+                    candidature.AnalyseCV.Id,
+                    candidature.AnalyseCV.Score,
+                    candidature.AnalyseCV.Classification,
+                    candidature.AnalyseCV.Resume,
+                    candidature.AnalyseCV.Competences,
+                    candidature.AnalyseCV.Experience
+                } : null
+            };
+        }
 
         public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
@@ -197,18 +194,39 @@ namespace Recrutement_api.Services.TenantServices
             return result;
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // ★ CHANGER STATUT — notifie le candidat si le statut change
+        //   Même pattern que OffreService.ChangerStatutPublicationAsync()
+        // ─────────────────────────────────────────────────────────────
         public async Task<object> ChangerStatutAsync(Guid candidatureId, string nouveauStatut)
         {
+            // 1 — Charger la candidature avec toutes les relations nécessaires
             var candidature = await _context.Candidatures
-                .Include(c => c.Candidat).ThenInclude(c => c.Utilisateur)
-                .Include(c => c.Offre)
+                .Include(c => c.Candidat)       // ← pour candidatId
+                .Include(c => c.Offre)          // ← pour offreTitre + offreId
                 .FirstOrDefaultAsync(c => c.Id == candidatureId)
                 ?? throw new KeyNotFoundException("Candidature introuvable");
 
             var ancienStatut = candidature.Statut;
+
+            // 2 — Mettre à jour le statut
             candidature.Statut = nouveauStatut;
             await _context.SaveChangesAsync();
 
+            // 3 — ★ Notifier le candidat si le statut a vraiment changé
+            //     Même logique que : if (publier && !ancienStatut) NotifyNewOffreAsync(...)
+            if (ancienStatut != nouveauStatut && candidature.Candidat != null)
+            {
+                await _notificationService.NotifyStatutChangeAsync(
+                    candidatId:    candidature.Candidat.Id,
+                    candidatureId: candidature.Id,
+                    offreTitre:    candidature.Offre?.Titre ?? "Unknown Position",
+                    nouveauStatut: nouveauStatut,
+                    offreId:       candidature.Offre?.Id
+                );
+            }
+
+            // 4 — Notifier les experts assignés (logique existante conservée)
             if (ancienStatut != nouveauStatut)
             {
                 var expertsAssignes = await _context.AssignationsExperts
@@ -239,7 +257,5 @@ namespace Recrutement_api.Services.TenantServices
 
             return new { id = candidature.Id, statut = nouveauStatut };
         }
-
-
     }
 }

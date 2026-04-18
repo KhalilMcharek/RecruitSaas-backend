@@ -63,13 +63,21 @@ builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionSe
 // =============================
 
 // Controllers + JSON
+// 🔧 Remplacez votre bloc AddCors par celui-ci :
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:8080", "http://localhost:3000")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+        policy.WithOrigins(
+            "http://localhost:5173",  // Vite par défaut
+            "http://localhost:8080",  // Vue CLI
+            "http://localhost:3000",  // React
+            "https://localhost:5173"  // Si vous utilisez HTTPS en frontend
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()  // ✅ CRITIQUE : requis pour les tokens JWT
+    );
 });
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -130,7 +138,9 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
-builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<ISavedJobService, SavedJobService>();
+builder.Services.AddScoped<NotificationService>();
+
 
 var app = builder.Build();
 

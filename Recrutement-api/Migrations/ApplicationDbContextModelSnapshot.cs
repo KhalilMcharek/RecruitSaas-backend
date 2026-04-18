@@ -140,6 +140,56 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Candidats");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.CandidatNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LuLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OffreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatId");
+
+                    b.HasIndex("CreeLe");
+
+                    b.HasIndex("IsRead");
+
+                    b.ToTable("CandidatNotifications");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -524,6 +574,31 @@ namespace Recrutement_api.Migrations
                     b.ToTable("OffresEmploi");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OffreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OffreId");
+
+                    b.HasIndex("CandidatId", "OffreId")
+                        .IsUnique();
+
+                    b.ToTable("SavedJobs");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -700,6 +775,15 @@ namespace Recrutement_api.Migrations
                     b.Navigation("Utilisateur");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.CandidatNotification", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidat", null)
+                        .WithMany()
+                        .HasForeignKey("CandidatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Candidat", "Candidat")
@@ -814,6 +898,25 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Entreprise");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidat", "Candidat")
+                        .WithMany()
+                        .HasForeignKey("CandidatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Recrutement_api.Models.OffreEmploi", "Offre")
+                        .WithMany()
+                        .HasForeignKey("OffreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidat");
+
+                    b.Navigation("Offre");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>
