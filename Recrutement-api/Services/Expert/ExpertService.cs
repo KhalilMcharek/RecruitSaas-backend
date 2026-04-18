@@ -169,32 +169,20 @@ var items = expertsList.Select(u =>
     }
 
     // 4. UPDATE
-    public async Task<ExpertResponseDto> UpdateExpertAsync(Guid id, UpdateExpertDto dto, Guid userOrTenantId)
-    {
-        var tenantId = await ResolveTenantIdAsync(userOrTenantId);
+   public async Task<ExpertResponseDto> ExpertUpdateAsync(Guid id, ExpertUpdateDto dto, Guid userOrTenantId)
+{
+    var tenantId = await ResolveTenantIdAsync(userOrTenantId);
 
-        var expert = await _context.Experts
-            .Include(e => e.Company)
-            .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId)
-            ?? throw new KeyNotFoundException("Expert introuvable");
+    var expert = await _context.Experts
+        .Include(e => e.Company)
+        .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId)
+        ?? throw new KeyNotFoundException("Expert introuvable");
 
-        if (expert.Email != dto.Email)
-        {
-            bool emailPris = await _context.Experts
-                .AnyAsync(e => e.Email == dto.Email && e.Id != id);
+    expert.Poste = dto.Poste;  // ← uniquement Poste
 
-            if (emailPris)
-                throw new InvalidOperationException("Email deja utilise");
-        }
-
-        expert.FirstName = dto.FirstName;
-        expert.LastName = dto.LastName;
-        expert.Email = dto.Email;
-
-        await _context.SaveChangesAsync();
-
-        return ToDto(expert);
-    }
+    await _context.SaveChangesAsync();
+    return ToDto(expert);
+}
 
     // 5. DESACTIVER
     public async Task DeactivateExpertAsync(Guid id, Guid userOrTenantId)

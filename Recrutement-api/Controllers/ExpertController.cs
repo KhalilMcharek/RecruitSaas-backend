@@ -55,10 +55,10 @@ public class ExpertController : ControllerBase
         => Ok(await _service.GetExpertByIdAsync(id, GetTenantId()));
 
     [HttpPut("experts/{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateExpertDto dto)
+    public async Task<IActionResult> Update(Guid id, [FromBody] ExpertUpdateDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        return Ok(await _service.UpdateExpertAsync(id, dto, GetTenantId()));
+        return Ok(await _service.ExpertUpdateAsync(id, dto, GetTenantId()));
     }
 
     [HttpPut("experts/{id}/deactivate")]

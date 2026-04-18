@@ -20,14 +20,12 @@ namespace Recrutement_api.Services.TenantServices
             ICurrentUserService currentUser,
             CandidateProfileService profileService)
         {
-            _context = context;
-            _currentUser = currentUser;
+            _context        = context;
+            _currentUser    = currentUser;
             _profileService = profileService;
         }
 
-        /// <summary>
-        /// Profil candidat (CandidateProfiles + Utilisateur) pour une candidature du tenant courant.
-        /// </summary>
+        // ── Profil candidat (collègue) ────────────────────────────────────────
         public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
             GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
         {
@@ -35,8 +33,7 @@ namespace Recrutement_api.Services.TenantServices
 
             var candidature = await _context.Candidatures
                 .AsNoTracking()
-                .Include(c => c.Offre)
-                    .ThenInclude(o => o!.Entreprise)
+                .Include(c => c.Offre).ThenInclude(o => o!.Entreprise)
                 .FirstOrDefaultAsync(c => c.Id == candidatureId);
 
             if (candidature == null)
@@ -58,6 +55,7 @@ namespace Recrutement_api.Services.TenantServices
             return await _profileService.GetProfileAsync(userId);
         }
 
+        // ── Liste candidatures (avec offreId du collègue + CvUrl) ─────────────
         public async Task<List<CandidatureResponseDto>> GetCandidaturesAsync(
             Guid? entrepriseId, string? nomOffre, string? statut,
             int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin,
@@ -98,7 +96,7 @@ namespace Recrutement_api.Services.TenantServices
                     NomEntreprise = c.Offre.Entreprise.Nom,
                     Statut        = c.Statut,
                     CreeLe        = c.CreeLe,
-                    CvUrl = c.CvUrl,
+                    CvUrl         = c.CvUrl,
                     ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
                 })
                 .ToListAsync();
@@ -125,51 +123,47 @@ namespace Recrutement_api.Services.TenantServices
         }
 
         public async Task<object?> GetCandidatureByIdAsync(Guid id)
- {
-     var candidature = await _context.Candidatures
-         .Include(c => c.Offre)
-         .ThenInclude(o => o.Entreprise)
-         .Include(c => c.Candidat)
-         .ThenInclude(ca => ca.Utilisateur)
-         .Include(c => c.AnalyseCV)
-         .FirstOrDefaultAsync(c => c.Id == id);
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre).ThenInclude(o => o.Entreprise)
+                .Include(c => c.Candidat).ThenInclude(ca => ca.Utilisateur)
+                .Include(c => c.AnalyseCV)
+                .FirstOrDefaultAsync(c => c.Id == id);
 
-     if (candidature == null) return null;
+            if (candidature == null) return null;
 
-     // Deserialize the FormulaireResponses JSON
-     object parsedResponses = null;
-     if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
-     {
-         try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
-         catch { parsedResponses = candidature.FormulaireResponses; }
-     }
+            object? parsedResponses = null;
+            if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
+            {
+                try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
+                catch { parsedResponses = candidature.FormulaireResponses; }
+            }
 
-     return new
-     {
-         candidature.Id,
-         candidature.OffreId,
-         candidature.CandidatId,
-         NomCandidat = candidature.Candidat.Utilisateur.Nom,
-         EmailCandidat = candidature.Candidat.Utilisateur.Email,
-         TitreOffre = candidature.Offre.Titre,
-         NomEntreprise = candidature.Offre.Entreprise.Nom,
-         candidature.Statut,
-         candidature.CreeLe,
-         candidature.CvUrl,
-         FormulaireResponses = parsedResponses,
-         AnalyseCV = candidature.AnalyseCV != null ? new 
-         {
-             candidature.AnalyseCV.Id,
-             candidature.AnalyseCV.Score,
-             candidature.AnalyseCV.Classification,
-             candidature.AnalyseCV.Resume,
-             candidature.AnalyseCV.Competences,
-             candidature.AnalyseCV.Experience
-         } : null
-     };
- }
-
-      
+            return new
+            {
+                candidature.Id,
+                candidature.OffreId,
+                candidature.CandidatId,
+                NomCandidat         = candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat       = candidature.Candidat.Utilisateur.Email,
+                TitreOffre          = candidature.Offre.Titre,
+                NomEntreprise       = candidature.Offre.Entreprise.Nom,
+                candidature.Statut,
+                candidature.CreeLe,
+                candidature.CvUrl,
+                FormulaireResponses = parsedResponses,
+                AnalyseCV = candidature.AnalyseCV != null ? new
+                {
+                    candidature.AnalyseCV.Id,
+                    candidature.AnalyseCV.Score,
+                    candidature.AnalyseCV.Classification,
+                    candidature.AnalyseCV.Resume,
+                    candidature.AnalyseCV.Competences,
+                    candidature.AnalyseCV.Experience,
+                    candidature.AnalyseCV.Certifications
+                } : null
+            };
+        }
 
         public async Task<List<CandidatureResponseDto>> GetMesCandidaturesDirectAsync(Guid candidatId)
         {
@@ -240,6 +234,47 @@ namespace Recrutement_api.Services.TenantServices
             return new { id = candidature.Id, statut = nouveauStatut };
         }
 
+        // ── Classification IA ─────────────────────────────────────────────────
+        public async Task<object> ClassifyAsync(Guid candidatureId)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.AnalyseCV)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId)
+                ?? throw new KeyNotFoundException("Candidature introuvable");
 
+            var texte = candidature.AnalyseCV?.TexteExtrait ?? "";
+
+            if (string.IsNullOrWhiteSpace(texte))
+                return new { classification = "Not Qualified" };
+
+            using var http = new HttpClient();
+            var payload = new
+            {
+                texteExtrait = texte,
+                titreOffre   = candidature.Offre?.Titre ?? "",
+                description  = candidature.Offre?.Description ?? ""
+            };
+
+            var json     = System.Text.Json.JsonSerializer.Serialize(payload);
+            var content  = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var response = await http.PostAsync("http://localhost:8000/ai/classify", content);
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"AI service error: {response.StatusCode}");
+
+            var resultJson = await response.Content.ReadAsStringAsync();
+            var options    = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var result     = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(resultJson, options);
+
+            if (candidature.AnalyseCV != null && result != null)
+            {
+                if (result.TryGetValue("classification", out var classif))
+                    candidature.AnalyseCV.Classification = classif?.ToString() ?? "";
+                await _context.SaveChangesAsync();
+            }
+
+            return result ?? new Dictionary<string, object> { ["classification"] = "Not Qualified" };
+        }
     }
 }
