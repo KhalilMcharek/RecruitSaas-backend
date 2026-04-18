@@ -159,7 +159,8 @@ namespace Recrutement_api.Services.TenantServices
                     candidature.AnalyseCV.Classification,
                     candidature.AnalyseCV.Resume,
                     candidature.AnalyseCV.Competences,
-                    candidature.AnalyseCV.Experience
+                    candidature.AnalyseCV.Experience,
+                    candidature.AnalyseCV.Certifications
                 } : null
             };
         }

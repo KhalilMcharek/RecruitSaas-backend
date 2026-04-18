@@ -173,7 +173,12 @@ namespace Recrutement_api.Controllers
             var res = await _aiService.ExtractExperienceAsync(id);
             return Ok(res);
         }
-
+        [HttpPost("{id}/ai/extract-certifications")]
+        public async Task<IActionResult> ExtractCertifications(Guid id)
+        {
+            var res = await _aiService.ExtractCertificationsAsync(id);
+            return Ok(res);
+        }
         // ================= INTERVIEW =================
 
         [HttpGet("{id}/interview/context")]

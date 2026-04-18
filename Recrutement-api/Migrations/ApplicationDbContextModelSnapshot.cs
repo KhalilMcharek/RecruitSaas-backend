@@ -31,6 +31,9 @@ namespace Recrutement_api.Migrations
                     b.Property<Guid>("CandidatureId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Certifications")
+                        .HasColumnType("text");
+
                     b.Property<string>("Classification")
                         .HasColumnType("text");
 
@@ -324,8 +327,23 @@ namespace Recrutement_api.Migrations
                     b.Property<DateTime>("CreeLe")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CreneauxDisponibles")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("DateScheduled")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("LienActif")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LienToken")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("MisAJourLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PlanifiePar")
+                        .HasColumnType("uuid");
 
                     b.Property<float?>("Score")
                         .HasColumnType("real");

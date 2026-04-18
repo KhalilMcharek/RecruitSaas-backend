@@ -24,7 +24,7 @@ builder.Configuration["EmailSettings:SmtpPort"] = "587";
 builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
 builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
 builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-2c2413a0887ad3e8d10ffd3af9adf495a909a8b1c8c184a3994dca5b9da17194-t1UiJzUeUyMIGcW3";
-builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
+builder.Configuration["EmailSettings:FromEmail"] = "a472ab001@smtp-brevo.com";
 builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
 builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
@@ -56,7 +56,7 @@ builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfT
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
-
+builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -123,6 +123,9 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
+builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
+                            Recrutement_api.Services.Entretien.EntretienService>();
+
 // builder.Services.AddScoped<ReportService>(); // TODO: à activer quand ReportService sera créé
 
 var app = builder.Build();
