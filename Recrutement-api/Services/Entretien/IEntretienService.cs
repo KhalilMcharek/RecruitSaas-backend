@@ -11,6 +11,7 @@ namespace Recrutement_api.Services.Entretien
         Task<object?> GetCreneauxByTokenAsync(string token);
         Task<object?> ConfirmerCreneauAsync(string token, DateTime dateChoisie);
         Task<EntretienRejoindreResult?> RejoindreAsync(string token);
+    Task<List<object>> GetEntretiensByCandidatAsync(Guid candidatId);
     }
 
     public class EntretienRejoindreResult

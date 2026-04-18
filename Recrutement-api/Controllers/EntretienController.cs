@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.Entretien;
 using Recrutement_api.DTOs.Entretien;
+using System.Security.Claims;
 
 namespace Recrutement_api.Controllers
 {
@@ -12,7 +13,7 @@ namespace Recrutement_api.Controllers
         private readonly IEntretienService _service;
         public EntretienController(IEntretienService service) => _service = service;
 
-        // ── Tenant/Expert : propose des créneaux et envoie le lien au candidat ──
+        // ── Tenant/Expert : propose des créneaux et envoie le lien ──
         [HttpPost("{candidatureId}/planifier")]
         [Authorize]
         public async Task<IActionResult> Planifier(Guid candidatureId, [FromBody] PlanifierDto dto)
@@ -49,6 +50,26 @@ namespace Recrutement_api.Controllers
             return Ok(new { message = "Entretien annulé" });
         }
 
+        // ── CANDIDAT : ses propres entretiens ──
+        [HttpGet("mes-entretiens")]
+        [Authorize]
+        public async Task<IActionResult> GetMesEntretiens()
+        {
+            // Essaie d'abord candidatId, sinon userId, sinon sub
+            var candidatIdStr = User.FindFirstValue("candidatId")
+                             ?? User.FindFirstValue("userId")
+                             ?? User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(candidatIdStr))
+                return Unauthorized(new { message = "candidatId manquant dans le token" });
+
+            if (!Guid.TryParse(candidatIdStr, out var candidatId))
+                return BadRequest(new { message = "candidatId invalide" });
+
+            var result = await _service.GetEntretiensByCandidatAsync(candidatId);
+            return Ok(result);
+        }
+
         // ── PUBLIC : candidat voit les créneaux disponibles via son token ──
         [HttpGet("public/{token}/creneaux")]
         [AllowAnonymous]
@@ -69,7 +90,7 @@ namespace Recrutement_api.Controllers
             return Ok(result);
         }
 
-        // ── PUBLIC : accès au lien entretien (actif seulement à l'heure J) ──
+        // ── PUBLIC : rejoindre l'entretien ──
         [HttpGet("public/{token}/rejoindre")]
         [AllowAnonymous]
         public async Task<IActionResult> Rejoindre(string token)
@@ -84,5 +105,4 @@ namespace Recrutement_api.Controllers
             return Ok(result);
         }
     }
-
 }

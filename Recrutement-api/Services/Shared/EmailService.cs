@@ -80,32 +80,28 @@ public class EmailService
 
   <p>Bonjour {toName},</p>
 
-  <p>Suite à votre candidature pour le poste de <strong>{titreOffre}</strong> chez <strong>{nomEntreprise}</strong>, nous souhaitons vous inviter à un entretien.</p>
+  <p>Félicitations ! Votre candidature pour le poste de <strong>{titreOffre}</strong> chez <strong>{nomEntreprise}</strong> a retenu notre attention.</p>
+
+  <p>Nous souhaitons vous rencontrer lors d'un entretien virtuel avec notre recruteur IA.</p>
 
   {messageBlock}
 
-  <p>Merci de choisir un créneau disponible en cliquant sur le lien ci-dessous :</p>
+  <p>Pour planifier votre entretien, cliquez sur le lien ci-dessous et choisissez le créneau qui vous convient parmi les disponibilités proposées :</p>
 
-  <p><a href=""{schedulingUrl}"" style=""color:#1a6e4a;font-weight:bold;"">{schedulingUrl}</a></p>
+  <p><a href=""{schedulingUrl}"" style=""color:#1A2B4C;font-weight:bold;font-size:16px;"">Choisir mon créneau d'entretien</a></p>
 
-  <p>Informations pratiques :</p>
-  <ul>
-    <li>Durée : 30 minutes</li>
-    <li>Format : entretien virtuel</li>
-    <li>Poste : {titreOffre}</li>
-  </ul>
+  <p style=""font-size:13px;color:#666;"">Durée : 30 min · Format : entretien virtuel · Poste : {titreOffre}</p>
 
-  <p>Ce lien est personnel, merci de ne pas le partager.</p>
+  <p style=""font-size:12px;color:#999;"">Ce lien est personnel, merci de ne pas le partager.</p>
 
-  <p>Cordialement,<br/>
-  L'équipe RH — {nomEntreprise}</p>
+  <p>Cordialement,<br/>L'équipe RH — {nomEntreprise}</p>
 
 </body>
 </html>";
 
         await SendAsync(
             toEmail, toName,
-            $"Entretien — {titreOffre} ({nomEntreprise})",
+            $"Vous êtes retenu(e) pour un entretien — {titreOffre}",
             html);
 
         _logger.LogInformation(

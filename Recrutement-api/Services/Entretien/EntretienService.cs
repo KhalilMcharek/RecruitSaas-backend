@@ -19,9 +19,9 @@ namespace Recrutement_api.Services.Entretien
             IConfiguration config,
             Recrutement_api.Services.Shared.EmailService emailService)
         {
-            _db = db;
-            _logger = logger;
-            _config = config;
+            _db           = db;
+            _logger       = logger;
+            _config       = config;
             _emailService = emailService;
         }
 
@@ -42,27 +42,27 @@ namespace Recrutement_api.Services.Entretien
             {
                 entretien = new EntretienIA
                 {
-                    Id = Guid.NewGuid(),
-                    CandidatureId = candidatureId,
-                    Statut = "LienEnvoye",
-                    CreeLe = DateTime.UtcNow
+                    Id             = Guid.NewGuid(),
+                    CandidatureId  = candidatureId,
+                    Statut         = "LienEnvoye",
+                    CreeLe         = DateTime.UtcNow
                 };
                 _db.EntretiensIA.Add(entretien);
             }
 
             // Génère un token unique sécurisé
-            entretien.LienToken = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+            entretien.LienToken           = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
                                               .Replace("+", "-").Replace("/", "_").Replace("=", "");
             entretien.CreneauxDisponibles = JsonSerializer.Serialize(
                 dto.Creneaux.Select(d => d.ToUniversalTime()).ToList());
-            entretien.Statut = "LienEnvoye";
-            entretien.MisAJourLe = DateTime.UtcNow;
+            entretien.Statut              = "LienEnvoye";
+            entretien.MisAJourLe          = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
 
             // URL publique de scheduling
             var frontendUrl = _config["Frontend:Url"] ?? "http://localhost:5173";
-            var schedulingUrl = $"{frontendUrl}/interview/{entretien.LienToken}";
+            var schedulingUrl = $"{frontendUrl}/schedule-interview/{entretien.LienToken}";
 
             _logger.LogInformation(
                 "[Entretien] Lien créé pour candidature {Id} : {Url}",
@@ -98,11 +98,11 @@ namespace Recrutement_api.Services.Entretien
                 entretien.Id,
                 entretien.Statut,
                 entretien.LienToken,
-                SchedulingUrl = schedulingUrl,
-                Creneaux = dto.Creneaux,
-                NomCandidat = candidature.Candidat.Utilisateur.Nom,
-                EmailCandidat = candidature.Candidat.Utilisateur.Email,
-                TitreOffre = candidature.Offre.Titre
+                SchedulingUrl  = schedulingUrl,
+                Creneaux       = dto.Creneaux,
+                NomCandidat    = candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat  = candidature.Candidat.Utilisateur.Email,
+                TitreOffre     = candidature.Offre.Titre
             };
         }
 
@@ -130,9 +130,9 @@ namespace Recrutement_api.Services.Entretien
                 e.DateScheduled,
                 e.LienActif,
                 e.CreeLe,
-                NomCandidat = e.Candidature.Candidat.Utilisateur.Nom,
+                NomCandidat  = e.Candidature.Candidat.Utilisateur.Nom,
                 EmailCandidat = e.Candidature.Candidat.Utilisateur.Email,
-                TitreOffre = e.Candidature.Offre.Titre,
+                TitreOffre   = e.Candidature.Offre.Titre,
                 CandidatureId = e.CandidatureId
             }).ToList();
         }
@@ -166,10 +166,10 @@ namespace Recrutement_api.Services.Entretien
                 e.Transcript,
                 e.CreeLe,
                 CreneauxDisponibles = creneaux,
-                NomCandidat = e.Candidature.Candidat.Utilisateur.Nom,
-                EmailCandidat = e.Candidature.Candidat.Utilisateur.Email,
-                TitreOffre = e.Candidature.Offre.Titre,
-                CandidatureId = e.CandidatureId
+                NomCandidat    = e.Candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat  = e.Candidature.Candidat.Utilisateur.Email,
+                TitreOffre     = e.Candidature.Offre.Titre,
+                CandidatureId  = e.CandidatureId
             };
         }
 
@@ -179,7 +179,7 @@ namespace Recrutement_api.Services.Entretien
             var entretien = await _db.EntretiensIA.FindAsync(id)
                 ?? throw new Exception("Entretien introuvable");
 
-            entretien.Statut = "Annule";
+            entretien.Statut     = "Annule";
             entretien.MisAJourLe = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
@@ -237,27 +237,59 @@ namespace Recrutement_api.Services.Entretien
             if (!valide) return null;
 
             entretien.DateScheduled = dateUTC;
-            entretien.Statut = "Planifie";
-            entretien.MisAJourLe = DateTime.UtcNow;
+            entretien.Statut        = "Planifie";
+            entretien.MisAJourLe    = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
             _logger.LogInformation(
                 "[Entretien] Candidat {Nom} a choisi le créneau {Date}",
                 entretien.Candidature.Candidat.Utilisateur.Nom, dateUTC);
 
-            var frontendUrl = _config["Frontend:Url"] ?? "http://localhost:5173";
-            var entretienUrl = $"{frontendUrl}/interview/{token}/rejoindre";
+            var frontendUrl   = _config["Frontend:Url"] ?? "http://localhost:5173";
+            var entretienUrl  = $"{frontendUrl}/interview/{token}/rejoindre";
 
             return new
             {
                 entretien.Id,
                 entretien.Statut,
-                DateScheduled = dateUTC,
-                EntretienUrl = entretienUrl,
-                TitreOffre = entretien.Candidature.Offre.Titre,
-                NomCandidat = entretien.Candidature.Candidat.Utilisateur.Nom,
-                message = $"Entretien confirmé le {dateUTC:dd/MM/yyyy à HH:mm} UTC"
+                DateScheduled  = dateUTC,
+                EntretienUrl   = entretienUrl,
+                TitreOffre     = entretien.Candidature.Offre.Titre,
+                NomCandidat    = entretien.Candidature.Candidat.Utilisateur.Nom,
+                message        = $"Entretien confirmé le {dateUTC:dd/MM/yyyy à HH:mm} UTC"
             };
+        }
+
+        // ── CANDIDAT : ses propres entretiens ────────────────────────────────────
+        public async Task<List<object>> GetEntretiensByCandidatAsync(Guid userId)
+        {
+            // userId peut être l'UserId ou le CandidatId — on cherche par les deux
+            var entretiens = await _db.EntretiensIA
+                .Include(e => e.Candidature)
+                    .ThenInclude(c => c.Offre)
+                        .ThenInclude(o => o.Entreprise)
+                .Include(e => e.Candidature)
+                    .ThenInclude(c => c.Candidat)
+                        .ThenInclude(ca => ca.Utilisateur)
+                .Where(e =>
+                    e.Candidature.Candidat.Id == userId ||
+                    e.Candidature.Candidat.Utilisateur.Id == userId)
+                .OrderByDescending(e => e.DateScheduled ?? e.CreeLe)
+                .ToListAsync();
+
+            return entretiens.Select(e => (object)new
+            {
+                e.Id,
+                e.Statut,
+                e.DateScheduled,
+                e.LienToken,
+                e.Score,
+                e.Transcript,
+                e.CreeLe,
+                TitreOffre    = e.Candidature.Offre.Titre,
+                NomEntreprise = e.Candidature.Offre.Entreprise?.Nom ?? "RecruitSaaS",
+                CandidatureId = e.CandidatureId
+            }).ToList();
         }
 
         // ── PUBLIC : rejoindre l'entretien (actif seulement à l'heure J) ─────────
@@ -280,23 +312,23 @@ namespace Recrutement_api.Services.Entretien
 
             if (estActif && entretien.Statut == "Planifie")
             {
-                entretien.Statut = "EnCours";
+                entretien.Statut    = "EnCours";
                 entretien.LienActif = true;
                 entretien.MisAJourLe = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
             }
 
             // URL de l'avatar IA (page entretien virtuel)
-            var frontendUrl = _config["Frontend:Url"] ?? "http://localhost:5173";
-            var avatarUrl = $"{frontendUrl}/interview/{token}/live";
+            var frontendUrl  = _config["Frontend:Url"] ?? "http://localhost:5173";
+            var avatarUrl    = $"{frontendUrl}/interview/{token}/live";
 
             return new EntretienRejoindreResult
             {
-                EstActif = estActif,
+                EstActif      = estActif,
                 DateScheduled = entretien.DateScheduled,
                 LienEntretien = estActif ? avatarUrl : null,
-                NomCandidat = entretien.Candidature.Candidat.Utilisateur.Nom,
-                TitreOffre = entretien.Candidature.Offre.Titre
+                NomCandidat   = entretien.Candidature.Candidat.Utilisateur.Nom,
+                TitreOffre    = entretien.Candidature.Offre.Titre
             };
         }
     }
