@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.StaticFiles;
 using Recrutement_api.Configuration;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
@@ -15,7 +15,6 @@ using Recrutement_api.Services.AI;
 using Serilog;
 using Serilog.Events;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Email config
@@ -23,7 +22,7 @@ builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
 builder.Configuration["EmailSettings:SmtpPort"] = "587";
 builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
 builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
-builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-2c2413a0887ad3e8d10ffd3af9adf495a909a8b1c8c184a3994dca5b9da17194-t1UiJzUeUyMIGcW3";
+builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-...";
 builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
 builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
 builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
@@ -39,24 +38,28 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.File("logs/errors-.txt", rollingInterval: RollingInterval.Day,
         restrictedToMinimumLevel: LogEventLevel.Error)
     .CreateLogger();
+
 builder.Host.UseSerilog();
 
 // Services
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
-// Services d'extraction de CV
-builder.Services.AddHttpClient();
+// CV Extraction
+builder.Services.AddHttpClient(); // ✅ une seule fois
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
-builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
+builder.Services.AddScoped<
+    Recrutement_api.Services.CvExtraction.ICvExtractionService,
+    Recrutement_api.Services.CvExtraction.CvExtractionService>();
+
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -64,6 +67,8 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
+
+// Controllers
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -71,7 +76,9 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -83,6 +90,7 @@ builder.Services.AddSwaggerGen(c =>
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Description = "Entrez: Bearer {votre_token}"
     });
+
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
@@ -98,22 +106,24 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
+// Services métier
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient();
-builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
-builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ILinkGeneratorService, LinkGeneratorService>();
-builder.Services.AddScoped<IOffreService, Recrutement_api.Services.OffreService>();
-builder.Services.AddScoped<IExpertService, Recrutement_api.Services.Expert.Implementations.ExpertFonctionsService>();
-
-builder.Services.AddScoped<Recrutement_api.Services.CandidatServices.ICandidatService, Recrutement_api.Services.CandidatServices.CandidatService>();
+builder.Services.AddScoped<IOffreService, OffreService>();
+builder.Services.AddScoped<IExpertService, ExpertFonctionsService>();
+builder.Services.AddScoped<ICandidatService, CandidatService>();
 
 builder.Services.AddScoped<TenantService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<CandidatureService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
+
 builder.Services.AddJwtAuthentication(builder.Configuration);
+
 builder.Services.AddScoped<Recrutement_api.Services.Expert.ExpertService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<EmailQueueService>();
@@ -123,30 +133,52 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
-builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
-                            Recrutement_api.Services.Entretien.EntretienService>();
 
- builder.Services.AddScoped<Recrutement_api.Services.TenantServices.ReportService>();
+// Nouveaux services
+builder.Services.AddScoped<
+    Recrutement_api.Services.Entretien.IEntretienService,
+    Recrutement_api.Services.Entretien.EntretienService>();
+
+builder.Services.AddScoped<Recrutement_api.Services.TenantServices.ReportService>();
 
 var app = builder.Build();
 
+// Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-app.UseStaticFiles();
-app.UseHttpsRedirection();
+
+// 1. CORS
 app.UseCors("AllowFrontend");
-app.UseAuthentication();
-app.UseAuthorization();
+
+// 2. Static files (GLB support)
+var webRoot = app.Environment.WebRootPath
+    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+
+if (!Directory.Exists(webRoot))
+    Directory.CreateDirectory(webRoot);
+
+var provider = new FileExtensionContentTypeProvider();
+provider.Mappings[".glb"] = "model/gltf-binary";
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
-    RequestPath = ""
+    ContentTypeProvider = provider
 });
-app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
+
+// 3. Auth
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Health check
+app.MapGet("/health", () => Results.Ok(new
+{
+    Status = "Healthy",
+    Timestamp = DateTime.UtcNow
+}));
+
 app.MapControllers();
+
 app.Run();
