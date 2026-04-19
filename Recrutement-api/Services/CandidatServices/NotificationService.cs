@@ -138,5 +138,42 @@ namespace Recrutement_api.Services
             return await _context.CandidatNotifications
                 .CountAsync(n => n.CandidatId == candidatId && !n.IsRead);
         }
-    }
+
+
+
+        // ─────────────────────────────────────────────────────────────
+// Services/NotificationService.cs
+// Ajoute cette méthode à la fin de la classe
+
+// ─────────────────────────────────────────────────────────────
+// ★ Notification pour quiz programmé
+// ─────────────────────────────────────────────────────────────
+public async Task<CandidatNotification> NotifyQuizScheduledAsync(
+    Guid candidatId,
+    Guid candidatureId,
+    string offreTitre,
+    DateTime scheduledDate,
+    string quizToken,
+    int timePerQuestion = 60)
+{
+    var notification = new CandidatNotification
+    {
+        Id            = Guid.NewGuid(),
+        CandidatId    = candidatId,
+        Type          = "quiz_invitation",
+        Title         = "📋 Technical Quiz Available",
+        Body          = $"A technical assessment for \"{offreTitre}\" is scheduled for {scheduledDate:dd/MM/yyyy HH:mm}. You have {timePerQuestion}s per question.",
+        OffreId       = null,
+        CandidatureId = candidatureId,
+        QuizToken     = quizToken,  // ★ Essentiel pour le lien
+        Metadata      = $"{{\"scheduledDate\":\"{scheduledDate:O}\",\"timePerQuestion\":{timePerQuestion}}}",
+        CreeLe        = DateTime.UtcNow,
+        IsRead        = false
+    };
+
+    _context.CandidatNotifications.Add(notification);
+    await _context.SaveChangesAsync();
+    
+    return notification;
+}}
 }

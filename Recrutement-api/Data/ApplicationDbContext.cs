@@ -29,7 +29,7 @@ namespace Recrutement_api.Data
         public DbSet<CandidateProfile> CandidateProfiles { get; set; }
         public DbSet<SavedJob> SavedJobs { get; set; }
 public DbSet<CandidatNotification> CandidatNotifications { get; set; }
-
+public DbSet<Quiz> Quizzes { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -185,6 +185,21 @@ modelBuilder.Entity<AvisExpert>()
                     .HasForeignKey(e => e.CandidatId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+
+
+            // Configuration Quiz
+        modelBuilder.Entity<Quiz>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.QuizToken).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.QuizToken).IsUnique();
+            entity.HasIndex(e => e.CandidatureId);
+            
+            entity.HasOne(e => e.Candidature)
+                  .WithMany()
+                  .HasForeignKey(e => e.CandidatureId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
 
             // Après la relation AvisExpert → Expert déjà existante, ajoutez :
 modelBuilder.Entity<AvisExpert>()

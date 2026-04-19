@@ -1,4 +1,4 @@
-namespace Recrutement_api.Services.Expert;
+﻿namespace Recrutement_api.Services.Expert;
 
 using Microsoft.EntityFrameworkCore;
 using Recrutement_api.Data;
@@ -15,7 +15,7 @@ public class ExpertUserService : IExpertService
         _context = context;
     }
 
-    //  Offres assign�es � l'expert 
+    // ── Offres assignées ──────────────────────────────────────────────────────
     public async Task<List<OffreAssigneeDto>> GetOffresAssigneesAsync(Guid expertId)
     {
         var assignations = await _context.AssignationsExperts
@@ -26,16 +26,17 @@ public class ExpertUserService : IExpertService
 
         return assignations.Select(a => new OffreAssigneeDto
         {
-            OffreId = a.OffreId,
-            Titre = a.Offre?.Titre ?? "�",
+            OffreId            = a.OffreId,
+            Titre              = a.Offre?.Titre ?? "—",
             NombreCandidatures = a.Offre?.Candidatures?.Count ?? 0
         }).ToList();
     }
 
+    // ── Candidatures ──────────────────────────────────────────────────────────
     public async Task<List<CandidatureExpertDto>> GetCandidaturesAsync(
-    Guid expertId,
-    Guid? filtreOffreId = null,
-    string? filtreStatut = null)
+        Guid expertId,
+        Guid? filtreOffreId = null,
+        string? filtreStatut = null)
     {
         var offreIds = await _context.AssignationsExperts
             .Where(a => a.ExpertId == expertId)
@@ -47,8 +48,8 @@ public class ExpertUserService : IExpertService
                 .ThenInclude(candidat => candidat.Utilisateur)
             .Include(c => c.Offre)
             .Include(c => c.AnalyseCV)
-            .Include(c => c.Avis)                    //  TOUS les avis
-                .ThenInclude(av => av.Expert)        //  avec le nom de l'expert
+            .Include(c => c.Avis)
+                .ThenInclude(av => av.Expert)
             .Where(c => offreIds.Contains(c.OffreId));
 
         if (filtreOffreId.HasValue)
@@ -72,53 +73,51 @@ public class ExpertUserService : IExpertService
                         .Deserialize<List<FormulaireReponseDto>>(
                             c.FormulaireResponses,
                             new System.Text.Json.JsonSerializerOptions
-                            { PropertyNameCaseInsensitive = true }
-                        ) ?? new();
+                            { PropertyNameCaseInsensitive = true }) ?? new();
                 }
                 catch { }
             }
 
             return new CandidatureExpertDto
             {
-                Id = c.Id,
-                OffreId = c.OffreId,
-                OffreTitre = c.Offre?.Titre ?? "�",
-                CandidatId = c.CandidatId,
+                Id                 = c.Id,
+                OffreId            = c.OffreId,
+                OffreTitre         = c.Offre?.Titre ?? "—",
+                CandidatId         = c.CandidatId,
                 CandidatNomComplet = $"{c.Candidat?.Utilisateur?.Prenom} {c.Candidat?.Utilisateur?.Nom}".Trim(),
-                CandidatEmail = c.Candidat?.Utilisateur?.Email ?? "",
-                CandidatTelephone = c.Candidat?.Telephone ?? "",
-                CvUrl = c.CvUrl ?? "",
-                Statut = c.Statut ?? "",
-                CreeLe = c.CreeLe,
-                ScoreIA = c.AnalyseCV?.Score,
-                ResumeIA = c.AnalyseCV?.Resume,
+                CandidatEmail      = c.Candidat?.Utilisateur?.Email ?? "",
+                CandidatTelephone  = c.Candidat?.Telephone ?? "",
+                CvUrl              = c.CvUrl ?? "",
+                Statut             = c.Statut ?? "",
+                CreeLe             = c.CreeLe,
+                ScoreIA            = c.AnalyseCV?.Score,
+                ResumeIA           = c.AnalyseCV?.Resume,
                 FormulaireResponses = responses,
 
-                // Avis de l'expert connect�
                 AvisExpert = monAvis == null ? null : new AvisExpertDetailDto
                 {
-                    Id = monAvis.Id,
-                    Score = monAvis.Score,
+                    Id          = monAvis.Id,
+                    Score       = monAvis.Score,
                     Commentaire = monAvis.Commentaire ?? "",
-                    CreeLe = monAvis.CreeLe,
-                    ExpertNom = $"{monAvis.Expert?.FirstName} {monAvis.Expert?.LastName}".Trim()
+                    CreeLe      = monAvis.CreeLe,
+                    ExpertNom   = $"{monAvis.Expert?.FirstName} {monAvis.Expert?.LastName}".Trim()
                 },
 
-                // Tous les avis de tous les experts
                 TousLesAvis = c.Avis.Select(av => new AvisExpertDetailDto
                 {
-                    Id = av.Id,
-                    Score = av.Score,
+                    Id          = av.Id,
+                    Score       = av.Score,
                     Commentaire = av.Commentaire ?? "",
-                    CreeLe = av.CreeLe,
-                    ExpertNom = $"{av.Expert?.FirstName} {av.Expert?.LastName}".Trim()
+                    CreeLe      = av.CreeLe,
+                    ExpertNom   = $"{av.Expert?.FirstName} {av.Expert?.LastName}".Trim()
                 }).ToList()
             };
         }).ToList();
     }
 
+    // ── Détail candidature ────────────────────────────────────────────────────
     public async Task<CandidatureExpertDto> GetCandidatureDetailAsync(
-    Guid expertId, Guid candidatureId)
+        Guid expertId, Guid candidatureId)
     {
         var offreIds = await _context.AssignationsExperts
             .Where(a => a.ExpertId == expertId)
@@ -130,88 +129,87 @@ public class ExpertUserService : IExpertService
                 .ThenInclude(candidat => candidat.Utilisateur)
             .Include(c => c.Offre)
             .Include(c => c.AnalyseCV)
-            .Include(c => c.Avis)                 //  TOUS les avis
-                .ThenInclude(av => av.Expert)     //  avec nom expert
-            .FirstOrDefaultAsync(c => c.Id == candidatureId
-                                   && offreIds.Contains(c.OffreId))
-            ?? throw new KeyNotFoundException("Candidature introuvable ou acc�s refus�.");
+            .Include(c => c.Avis)
+                .ThenInclude(av => av.Expert)
+            .FirstOrDefaultAsync(c => c.Id == candidatureId && offreIds.Contains(c.OffreId))
+            ?? throw new KeyNotFoundException("Candidature introuvable ou accès refusé.");
 
         var monAvis = c.Avis.FirstOrDefault(av => av.ExpertId == expertId);
 
         return new CandidatureExpertDto
         {
-            Id = c.Id,
-            OffreId = c.OffreId,
-            OffreTitre = c.Offre?.Titre ?? "�",
-            CandidatId = c.CandidatId,
-            CandidatNomComplet = $"{c.Candidat?.Utilisateur?.Prenom} {c.Candidat?.Utilisateur?.Nom}".Trim(),
-            CandidatEmail = c.Candidat?.Utilisateur?.Email ?? "",
-            CandidatTelephone = c.Candidat?.Telephone ?? "",
-            CvUrl = c.CvUrl ?? "",
-            Statut = c.Statut ?? "",
-            CreeLe = c.CreeLe,
-            ScoreIA = c.AnalyseCV?.Score,
-            ResumeIA = c.AnalyseCV?.Resume,
+            Id                  = c.Id,
+            OffreId             = c.OffreId,
+            OffreTitre          = c.Offre?.Titre ?? "—",
+            CandidatId          = c.CandidatId,
+            CandidatNomComplet  = $"{c.Candidat?.Utilisateur?.Prenom} {c.Candidat?.Utilisateur?.Nom}".Trim(),
+            CandidatEmail       = c.Candidat?.Utilisateur?.Email ?? "",
+            CandidatTelephone   = c.Candidat?.Telephone ?? "",
+            CvUrl               = c.CvUrl ?? "",
+            Statut              = c.Statut ?? "",
+            CreeLe              = c.CreeLe,
+            ScoreIA             = c.AnalyseCV?.Score,
+            ResumeIA            = c.AnalyseCV?.Resume,
             FormulaireResponses = new(),
 
             AvisExpert = monAvis == null ? null : new AvisExpertDetailDto
             {
-                Id = monAvis.Id,
-                Score = monAvis.Score,
+                Id          = monAvis.Id,
+                Score       = monAvis.Score,
                 Commentaire = monAvis.Commentaire ?? "",
-                CreeLe = monAvis.CreeLe,
-                ExpertNom = $"{monAvis.Expert?.FirstName} {monAvis.Expert?.LastName}".Trim()
+                CreeLe      = monAvis.CreeLe,
+                ExpertNom   = $"{monAvis.Expert?.FirstName} {monAvis.Expert?.LastName}".Trim()
             },
 
             TousLesAvis = c.Avis.Select(av => new AvisExpertDetailDto
             {
-                Id = av.Id,
-                Score = av.Score,
+                Id          = av.Id,
+                Score       = av.Score,
                 Commentaire = av.Commentaire ?? "",
-                CreeLe = av.CreeLe,
-                ExpertNom = $"{av.Expert?.FirstName} {av.Expert?.LastName}".Trim()
+                CreeLe      = av.CreeLe,
+                ExpertNom   = $"{av.Expert?.FirstName} {av.Expert?.LastName}".Trim()
             }).ToList()
         };
     }
 
+    // ── Avis ──────────────────────────────────────────────────────────────────
     public async Task<AvisExpertDetailDto> SoumettreAvisAsync(
-    Guid expertId, SoumettreAvisDto dto)
+        Guid expertId, SoumettreAvisDto dto)
     {
         bool estAssigne = await _context.AssignationsExperts
             .AnyAsync(a => a.ExpertId == expertId &&
-                           _context.Candidatures
-                               .Any(c => c.Id == dto.CandidatureId
-                                      && c.OffreId == a.OffreId));
+                _context.Candidatures.Any(c =>
+                    c.Id == dto.CandidatureId && c.OffreId == a.OffreId));
 
         if (!estAssigne)
-            throw new UnauthorizedAccessException("Acc�s refus� � cette candidature.");
+            throw new UnauthorizedAccessException("Accès refusé");
 
         var avis = await _context.AvisExperts
-            .FirstOrDefaultAsync(a => a.ExpertId == expertId
-                                   && a.CandidatureId == dto.CandidatureId);
+            .FirstOrDefaultAsync(a =>
+                a.ExpertId == expertId && a.CandidatureId == dto.CandidatureId);
 
         if (avis != null)
         {
-            avis.Score = dto.Score;
+            avis.Score       = dto.Score;
             avis.Commentaire = dto.Commentaire;
         }
         else
         {
             avis = new AvisExpert
             {
-                Id = Guid.NewGuid(),
-                ExpertId = expertId,
+                Id            = Guid.NewGuid(),
+                ExpertId      = expertId,
                 CandidatureId = dto.CandidatureId,
-                Score = dto.Score,
-                Commentaire = dto.Commentaire,
-                CreeLe = DateTime.UtcNow
+                Score         = dto.Score,
+                Commentaire   = dto.Commentaire,
+                CreeLe        = DateTime.UtcNow
             };
             _context.AvisExperts.Add(avis);
         }
 
         await _context.SaveChangesAsync();
 
-        // Notifier les autres experts assign�s 
+        // Notifier les autres experts assignés
         var candidature = await _context.Candidatures
             .Include(c => c.Candidat).ThenInclude(c => c.Utilisateur)
             .Include(c => c.Offre)
@@ -231,7 +229,7 @@ public class ExpertUserService : IExpertService
                 ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
                 : "A candidate";
 
-            var nomExpert = expertAuteur != null
+            var nomExpert   = expertAuteur != null
                 ? $"{expertAuteur.FirstName} {expertAuteur.LastName}".Trim()
                 : "An expert";
 
@@ -241,14 +239,14 @@ public class ExpertUserService : IExpertService
             {
                 _context.Notifications.Add(new Notification
                 {
-                    ExpertId = expId,
-                    Type = "status_updates",
-                    Title = "Candidate evaluated by colleague",
-                    Body = $"{nomExpert} rated {nomCandidat} {scoreLabel} on \"{candidature.Offre?.Titre}\"",
-                    OffreId = candidature.OffreId,
+                    ExpertId   = expId,
+                    Type       = "status_updates",
+                    Title      = "Candidate evaluated by colleague",
+                    Body       = $"{nomExpert} rated {nomCandidat} {scoreLabel} on \"{candidature.Offre?.Titre}\"",
+                    OffreId    = candidature.OffreId,
                     CandidatId = dto.CandidatureId,
-                    CreeLe = DateTime.UtcNow,
-                    Read = false
+                    CreeLe     = DateTime.UtcNow,
+                    Read       = false
                 });
             }
             await _context.SaveChangesAsync();
@@ -256,26 +254,28 @@ public class ExpertUserService : IExpertService
 
         return new AvisExpertDetailDto
         {
-            Id = avis.Id,
-            Score = avis.Score,
+            Id          = avis.Id,
+            Score       = avis.Score,
             Commentaire = avis.Commentaire ?? "",
-            CreeLe = avis.CreeLe
+            CreeLe      = avis.CreeLe
         };
     }
+
+    // ── Profil expert ─────────────────────────────────────────────────────────
     public async Task<ProfilExpertDto> GetProfilAsync(Guid expertId)
     {
         var expert = await _context.Experts
             .Include(e => e.Utilisateur)
             .FirstOrDefaultAsync(e => e.Id == expertId)
-            ?? throw new KeyNotFoundException("Expert introuvable.");
+            ?? throw new KeyNotFoundException("Expert introuvable");
 
         return new ProfilExpertDto
         {
-            Id = expert.Id,
+            Id        = expert.Id,
             FirstName = expert.FirstName,
-            LastName = expert.LastName,
-            Email = expert.Email,
-            Phone = expert.Utilisateur?.Telephone,
+            LastName  = expert.LastName,
+            Email     = expert.Email,
+            Phone     = expert.Utilisateur?.Telephone,
             Specialty = expert.Poste
         };
     }
@@ -285,18 +285,18 @@ public class ExpertUserService : IExpertService
         var expert = await _context.Experts
             .Include(e => e.Utilisateur)
             .FirstOrDefaultAsync(e => e.Id == expertId)
-            ?? throw new KeyNotFoundException("Expert introuvable.");
+            ?? throw new KeyNotFoundException("Expert introuvable");
 
         expert.FirstName = dto.FirstName;
-        expert.LastName = dto.LastName;
-        expert.Email = dto.Email;
-        expert.Poste = dto.Specialty;
+        expert.LastName  = dto.LastName;
+        expert.Email     = dto.Email;
+        expert.Poste     = dto.Specialty;
 
         if (expert.Utilisateur != null)
         {
-            expert.Utilisateur.Prenom = dto.FirstName;
-            expert.Utilisateur.Nom = dto.LastName;
-            expert.Utilisateur.Email = dto.Email;
+            expert.Utilisateur.Prenom    = dto.FirstName;
+            expert.Utilisateur.Nom       = dto.LastName;
+            expert.Utilisateur.Email     = dto.Email;
             expert.Utilisateur.Telephone = dto.Phone;
         }
 
@@ -304,11 +304,11 @@ public class ExpertUserService : IExpertService
 
         return new ProfilExpertDto
         {
-            Id = expert.Id,
+            Id        = expert.Id,
             FirstName = expert.FirstName,
-            LastName = expert.LastName,
-            Email = expert.Email,
-            Phone = expert.Utilisateur?.Telephone,
+            LastName  = expert.LastName,
+            Email     = expert.Email,
+            Phone     = expert.Utilisateur?.Telephone,
             Specialty = expert.Poste
         };
     }

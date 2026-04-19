@@ -22,12 +22,13 @@ namespace Recrutement_api.Services.TenantServices
             CandidateProfileService profileService,
             NotificationService notificationService) // ← AJOUTÉ
         {
-            _context = context;
-            _currentUser = currentUser;
+            _context        = context;
+            _currentUser    = currentUser;
             _profileService = profileService;
             _notificationService = notificationService; // ← AJOUTÉ
         }
 
+        // ── Profil candidat (collègue) ────────────────────────────────────────
         public async Task<(bool Success, string Message, CandidateProfileDto? Data)>
             GetCandidateProfileForTenantCandidatureAsync(Guid candidatureId)
         {
@@ -35,8 +36,7 @@ namespace Recrutement_api.Services.TenantServices
 
             var candidature = await _context.Candidatures
                 .AsNoTracking()
-                .Include(c => c.Offre)
-                    .ThenInclude(o => o!.Entreprise)
+                .Include(c => c.Offre).ThenInclude(o => o!.Entreprise)
                 .FirstOrDefaultAsync(c => c.Id == candidatureId);
 
             if (candidature == null)
@@ -58,6 +58,7 @@ namespace Recrutement_api.Services.TenantServices
             return await _profileService.GetProfileAsync(userId);
         }
 
+        // ── Liste candidatures (avec offreId du collègue + CvUrl) ─────────────
         public async Task<List<CandidatureResponseDto>> GetCandidaturesAsync(
             Guid? entrepriseId, string? nomOffre, string? statut,
             int? scoreMin, int? scoreMax, DateTime? dateDebut, DateTime? dateFin,
@@ -136,7 +137,7 @@ namespace Recrutement_api.Services.TenantServices
 
             if (candidature == null) return null;
 
-            object parsedResponses = null;
+            object? parsedResponses = null;
             if (!string.IsNullOrWhiteSpace(candidature.FormulaireResponses))
             {
                 try { parsedResponses = JsonSerializer.Deserialize<Dictionary<string, string>>(candidature.FormulaireResponses); }
@@ -163,7 +164,8 @@ namespace Recrutement_api.Services.TenantServices
                     candidature.AnalyseCV.Classification,
                     candidature.AnalyseCV.Resume,
                     candidature.AnalyseCV.Competences,
-                    candidature.AnalyseCV.Experience
+                    candidature.AnalyseCV.Experience,
+                    candidature.AnalyseCV.Certifications
                 } : null
             };
         }
@@ -256,6 +258,49 @@ namespace Recrutement_api.Services.TenantServices
             }
 
             return new { id = candidature.Id, statut = nouveauStatut };
+        }
+
+        // ── Classification IA ─────────────────────────────────────────────────
+        public async Task<object> ClassifyAsync(Guid candidatureId)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Offre)
+                .Include(c => c.AnalyseCV)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId)
+                ?? throw new KeyNotFoundException("Candidature introuvable");
+
+            var texte = candidature.AnalyseCV?.TexteExtrait ?? "";
+
+            if (string.IsNullOrWhiteSpace(texte))
+                return new { classification = "Not Qualified" };
+
+            using var http = new HttpClient();
+            var payload = new
+            {
+                texteExtrait = texte,
+                titreOffre   = candidature.Offre?.Titre ?? "",
+                description  = candidature.Offre?.Description ?? ""
+            };
+
+            var json     = System.Text.Json.JsonSerializer.Serialize(payload);
+            var content  = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var response = await http.PostAsync("http://localhost:8000/ai/classify", content);
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"AI service error: {response.StatusCode}");
+
+            var resultJson = await response.Content.ReadAsStringAsync();
+            var options    = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var result     = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(resultJson, options);
+
+            if (candidature.AnalyseCV != null && result != null)
+            {
+                if (result.TryGetValue("classification", out var classif))
+                    candidature.AnalyseCV.Classification = classif?.ToString() ?? "";
+                await _context.SaveChangesAsync();
+            }
+
+            return result ?? new Dictionary<string, object> { ["classification"] = "Not Qualified" };
         }
     }
 }

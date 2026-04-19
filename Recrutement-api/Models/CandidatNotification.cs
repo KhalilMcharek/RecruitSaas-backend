@@ -36,6 +36,10 @@ namespace Recrutement_api.Models
         // Relations optionnelles
         public Guid? OffreId { get; set; }
         public Guid? CandidatureId { get; set; }
+            
+    // ★ Ajouts pour quiz
+    public string? QuizToken { get; set; }
+    public string? Metadata { get; set; }  // JSON pour données supplémentaires
         
         // Navigation properties (optionnel)
         // public Candidat Candidat { get; set; }

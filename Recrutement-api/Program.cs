@@ -20,11 +20,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Email config
 builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
+
 builder.Configuration["EmailSettings:SmtpPort"] = "587";
 builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
-builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
-builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-2c2413a0887ad3e8d10ffd3af9adf495a909a8b1c8c184a3994dca5b9da17194-t1UiJzUeUyMIGcW3";
-builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
+builder.Configuration["EmailSettings:SmtpUsername"] = "a89322001@smtp-brevo.com";
+builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-f51c962ba5c5c8f58dd1f373d73ec9b7503cce2605b9b060534629481b315611-cHSGiZH61fwXWVEn";
+builder.Configuration["EmailSettings:FromEmail"] = "oumaymametoui3@gmail.com";
 builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
 builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
@@ -50,10 +51,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     )
 );
 
-
-
 // Services d'extraction de CV
-builder.Services.AddHttpClient(); // Requis par CvParserService
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
@@ -65,6 +64,7 @@ builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionSe
 // Controllers + JSON
 // 🔧 Remplacez votre bloc AddCors par celui-ci :
 
+builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -114,7 +114,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient(); // ← pour le proxy Cloudinary
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<Recrutement_api.Services.IAuthService, Recrutement_api.Services.AuthService>();
 builder.Services.AddScoped<Recrutement_api.Services.IJwtService, Recrutement_api.Services.JwtService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -141,6 +141,10 @@ builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
 builder.Services.AddScoped<ISavedJobService, SavedJobService>();
 builder.Services.AddScoped<NotificationService>();
 
+builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
+                            Recrutement_api.Services.Entretien.EntretienService>();
+
+ builder.Services.AddScoped<Recrutement_api.Services.TenantServices.ReportService>();
 
 var app = builder.Build();
 
@@ -154,9 +158,6 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
-
-
-
 
 app.UseStaticFiles(new StaticFileOptions
 {

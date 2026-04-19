@@ -10,6 +10,7 @@ namespace Recrutement_api.Services.AI
         Task<object> SummarizeCvAsync(Guid candidatureId);
         Task<object> ExtractCompetencesAsync(Guid candidatureId);
         Task<object> ExtractExperienceAsync(Guid candidatureId);
-        Task<object> ExtractCompaniesAsync(Guid candidatureId);  // TICKET-023
+        Task<object> ExtractCompaniesAsync(Guid candidatureId);
+        Task<object> ExtractCertificationsAsync(Guid candidatureId); 
     }
 }

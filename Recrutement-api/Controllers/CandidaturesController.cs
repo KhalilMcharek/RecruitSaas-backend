@@ -60,51 +60,43 @@ namespace Recrutement_api.Controllers
             return Ok(candidature);
         }
 
-        // ── Avis experts pour une candidature (utilisé par le tenant) ──────────
+        // ── Avis experts ──────────────────────────────────────────────────────
         [HttpGet("{id}/avis-experts")]
         public async Task<IActionResult> GetAvisExperts(Guid id)
         {
-            // Vérifie que la candidature existe
             var candidature = await _context.Candidatures
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (candidature == null)
                 return NotFound(new { message = "Candidature non trouvée" });
 
-            // Récupère tous les avis experts pour cette candidature
             var avis = await _context.AvisExperts
                 .Include(a => a.Expert)
                 .Where(a => a.CandidatureId == id)
                 .OrderByDescending(a => a.CreeLe)
                 .Select(a => new
                 {
-                    id           = a.Id,
-                    expertId     = a.ExpertId,
-                    expertNom    = a.Expert != null
+                    id          = a.Id,
+                    expertId    = a.ExpertId,
+                    expertNom   = a.Expert != null
                                     ? (a.Expert.FirstName + " " + a.Expert.LastName).Trim()
                                     : "Expert",
-                    expertPoste  = a.Expert != null ? a.Expert.Poste : null,
-                    score        = a.Score,
-                    scorePct     = (int)Math.Round(a.Score * 20),  // /5 → /100
-                    commentaire  = a.Commentaire,
-                    creeLe       = a.CreeLe
+                    expertPoste = a.Expert != null ? a.Expert.Poste : null,
+                    score       = a.Score,
+                    scorePct    = (int)Math.Round(a.Score * 20),
+                    commentaire = a.Commentaire,
+                    creeLe      = a.CreeLe
                 })
                 .ToListAsync();
 
-            // Score moyen de l'équipe
             double? scoreMoyen = avis.Any()
                 ? Math.Round(avis.Average(a => a.score), 2)
                 : null;
 
-            return Ok(new
-            {
-                avis,
-                scoreMoyen,
-                nombreAvis = avis.Count
-            });
+            return Ok(new { avis, scoreMoyen, nombreAvis = avis.Count });
         }
 
-        // ── Experts assignés à l'offre de cette candidature ──────────────────
+        // ── Experts assignés ──────────────────────────────────────────────────
         [HttpGet("{id}/experts-assignes")]
         public async Task<IActionResult> GetExpertsAssignes(Guid id)
         {
@@ -130,6 +122,19 @@ namespace Recrutement_api.Controllers
                 .ToListAsync();
 
             return Ok(experts);
+        }
+
+        // ── Profil candidat (collègue) ────────────────────────────────────────
+        [HttpGet("{candidatureId:guid}/candidate-profile")]
+        public async Task<IActionResult> GetCandidateProfile(Guid candidatureId)
+        {
+            var (success, message, data) =
+                await _candidatureService.GetCandidateProfileForTenantCandidatureAsync(candidatureId);
+
+            if (!success)
+                return Ok(new { success = false, message });
+
+            return Ok(new { success = true, data });
         }
 
         // ================= AI =================
@@ -166,21 +171,73 @@ namespace Recrutement_api.Controllers
         public async Task<IActionResult> ExtractExperience(Guid id)
         {
             var res = await _aiService.ExtractExperienceAsync(id);
-            return Ok(res);}
-        /// <summary>
-        /// GET /api/candidatures/{candidatureId}/candidate-profile
-        /// Profil (CandidateProfiles) du candidat pour une candidature du tenant.
-        /// </summary>
-        [HttpGet("{candidatureId:guid}/candidate-profile")]
-        public async Task<IActionResult> GetCandidateProfile(Guid candidatureId)
+            return Ok(res);
+        }
+        [HttpPost("{id}/ai/extract-certifications")]
+        public async Task<IActionResult> ExtractCertifications(Guid id)
         {
-            var (success, message, data) =
-                await _candidatureService.GetCandidateProfileForTenantCandidatureAsync(candidatureId);
+            var res = await _aiService.ExtractCertificationsAsync(id);
+            return Ok(res);
+        }
+        // ================= INTERVIEW =================
 
-            if (!success)
-                return Ok(new { success = false, message });
+        [HttpGet("{id}/interview/context")]
+        public async Task<IActionResult> GetInterviewContext(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Candidat).ThenInclude(c => c.Utilisateur)
+                .Include(c => c.Offre).ThenInclude(o => o.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == id);
 
-            return Ok(new { success = true, data });
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            var candidatNom = candidature.Candidat?.Utilisateur != null
+                ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
+                : "Candidat";
+
+            return Ok(new
+            {
+                candidatureId  = candidature.Id,
+                sessionId      = candidature.Id,
+                candidateName  = candidatNom,
+                candidateEmail = candidature.Candidat?.Utilisateur?.Email,
+                jobTitle       = candidature.Offre?.Titre ?? "Poste",
+                companyName    = candidature.Offre?.Entreprise?.Nom ?? "RecruitSaaS",
+                status         = candidature.Statut
+            });
+        }
+
+        [HttpPost("{id}/interview/start")]
+        public async Task<IActionResult> StartInterview(Guid id)
+        {
+            var candidature = await _context.Candidatures
+                .Include(c => c.Candidat).ThenInclude(c => c.Utilisateur)
+                .Include(c => c.Offre).ThenInclude(o => o.Entreprise)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (candidature == null)
+                return NotFound(new { message = "Candidature non trouvée" });
+
+            if (!string.Equals(candidature.Statut, "Entretien", StringComparison.OrdinalIgnoreCase))
+            {
+                candidature.Statut = "Entretien";
+                await _context.SaveChangesAsync();
+            }
+
+            var candidatNom = candidature.Candidat?.Utilisateur != null
+                ? $"{candidature.Candidat.Utilisateur.Prenom} {candidature.Candidat.Utilisateur.Nom}".Trim()
+                : "Candidat";
+
+            return Ok(new
+            {
+                interviewSessionId = candidature.Id,
+                candidatureId      = candidature.Id,
+                status             = candidature.Statut,
+                candidateName      = candidatNom,
+                jobTitle           = candidature.Offre?.Titre ?? "Poste",
+                companyName        = candidature.Offre?.Entreprise?.Nom ?? "RecruitSaaS"
+            });
         }
 
         // ================= MES CANDIDATURES =================
