@@ -5,8 +5,10 @@ using Recrutement_api.Data;
 using Recrutement_api.DTOs;
 using Recrutement_api.Extensions;
 using Recrutement_api.Services;
+using Recrutement_api.Services.CandidatServices;
 using Recrutement_api.Services.CandidateServices;
 using Recrutement_api.Services.Expert;
+using Recrutement_api.Services.Expert.Implementations;
 using Recrutement_api.Services.Implementations;
 using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
@@ -16,16 +18,6 @@ using Serilog;
 using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Email config
-builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
-builder.Configuration["EmailSettings:SmtpPort"] = "587";
-builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
-builder.Configuration["EmailSettings:SmtpUsername"] = "a472ab001@smtp-brevo.com";
-builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-...";
-builder.Configuration["EmailSettings:FromEmail"] = "gofranelaradh@gmail.com";
-builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
-builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
 // Serilog
 Directory.CreateDirectory("logs");
@@ -165,7 +157,17 @@ provider.Mappings[".glb"] = "model/gltf-binary";
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    ContentTypeProvider = provider
+    ContentTypeProvider = provider,
+    OnPrepareResponse = ctx =>
+    {
+        // Images servies depuis wwwroot : CORS pour lecture canvas côté Vite (crossOrigin anonymous).
+        var path = ctx.File.Name?.ToLowerInvariant() ?? "";
+        if (!path.EndsWith(".jpg") && !path.EndsWith(".jpeg") && !path.EndsWith(".png") && !path.EndsWith(".webp") && !path.EndsWith(".jfif"))
+            return;
+        var origin = ctx.Context.Request.Headers.Origin.ToString();
+        if (origin is "http://localhost:5173" or "http://localhost:8080" or "http://localhost:3000")
+            ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+    }
 });
 
 // 3. Auth
