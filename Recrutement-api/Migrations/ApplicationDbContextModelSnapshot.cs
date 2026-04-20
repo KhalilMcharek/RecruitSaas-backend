@@ -641,6 +641,58 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Quizzes");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.QuizResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnswersJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Grade")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<float>("Percentage")
+                        .HasColumnType("real");
+
+                    b.Property<Guid>("QuizId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("QuizToken")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TimeSpentJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizId");
+
+                    b.ToTable("QuizResults");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>
                 {
                     b.Property<Guid>("Id")
@@ -976,6 +1028,17 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Candidature");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.QuizResult", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Quiz", "Quiz")
+                        .WithMany()
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>

@@ -1,6 +1,5 @@
 // Controllers/CandidatController.cs
-// ─── Seule la méthode UpdateStatut est modifiée + injection NotificationService ───
-// Colle ce fichier en remplacement complet de ton CandidatController.cs
+// ─── VERSION CORRIGÉE : inclut QuizToken dans les notifications ───
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,18 +23,18 @@ namespace Recrutement_api.Controllers
         private readonly ICandidatService        _candidatService;
         private readonly CandidateProfileService _profileService;
         private readonly ApplicationDbContext    _context;
-        private readonly NotificationService     _notifService; // ★ AJOUTÉ
+        private readonly NotificationService     _notifService;
 
         public CandidatController(
             ICandidatService        candidatService,
             CandidateProfileService profileService,
             ApplicationDbContext    context,
-            NotificationService     notifService)  // ★ AJOUTÉ
+            NotificationService     notifService)
         {
             _candidatService = candidatService;
             _profileService  = profileService;
             _context         = context;
-            _notifService    = notifService;       // ★ AJOUTÉ
+            _notifService    = notifService;
         }
 
         // ─────────────────────────────────────────────
@@ -175,20 +174,17 @@ namespace Recrutement_api.Controllers
             if (!allowed.Contains(dto.Statut))
                 return BadRequest(new { message = $"Statut non reconnu. Valeurs autorisées : {string.Join(", ", allowed)}" });
 
-            // 1 — Récupérer la candidature avec ses relations (offre + candidat)
             var candidature = await _context.Candidatures
-                .Include(c => c.Offre)          // pour récupérer offreTitre et offreId
-                .Include(c => c.Candidat)       // pour récupérer candidatId
+                .Include(c => c.Offre)
+                .Include(c => c.Candidat)
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (candidature == null)
                 return NotFound(new { message = "Candidature introuvable." });
 
-            // 2 — Mettre à jour le statut
             candidature.Statut = dto.Statut;
             await _context.SaveChangesAsync();
 
-            // 3 — ★ Créer la notification automatiquement
             var offreTitre = candidature.Offre?.Titre ?? "Unknown Position";
             var offreId    = candidature.Offre?.Id;
 
@@ -236,7 +232,7 @@ namespace Recrutement_api.Controllers
         }
 
         // ═════════════════════════════════════════════════════════
-        // GET /api/candidat/notifications
+        // ★ GET /api/candidat/notifications — CORRIGÉ : inclut QuizToken
         // ═════════════════════════════════════════════════════════
         [HttpGet("notifications")]
         public async Task<IActionResult> GetNotifications()
@@ -251,6 +247,7 @@ namespace Recrutement_api.Controllers
             if (candidat == null)
                 return NotFound(new { message = "Candidat introuvable." });
 
+            // ★ PROJECTION COMPLÈTE avec QuizToken + QuizUrl calculé
             var notifications = await _context.CandidatNotifications
                 .Where(n => n.CandidatId == candidat.Id)
                 .OrderByDescending(n => n.CreeLe)
@@ -265,7 +262,11 @@ namespace Recrutement_api.Controllers
                     n.CreeLe,
                     n.LuLe,
                     n.OffreId,
-                    n.CandidatureId
+                    n.CandidatureId,
+                    
+                    // ★ CHAMPS SPÉCIFIQUES QUIZ — CRITIQUES POUR LE FRONTEND
+                    QuizToken = n.QuizToken,
+                    QuizUrl   = n.QuizToken != null ? $"/quiz/{n.QuizToken}" : null
                 })
                 .ToListAsync();
 
@@ -396,8 +397,8 @@ namespace Recrutement_api.Controllers
             if (candidat == null)
                 return NotFound(new { message = "Candidat introuvable." });
 
-            var thirtyDaysAgo     = DateTime.UtcNow.AddDays(-30);
-            var oldNotifications  = await _context.CandidatNotifications
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            var oldNotifications = await _context.CandidatNotifications
                 .Where(n => n.CandidatId == candidat.Id && n.CreeLe < thirtyDaysAgo)
                 .ToListAsync();
 

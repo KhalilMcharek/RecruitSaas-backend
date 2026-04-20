@@ -30,6 +30,7 @@ namespace Recrutement_api.Data
         public DbSet<SavedJob> SavedJobs { get; set; }
 public DbSet<CandidatNotification> CandidatNotifications { get; set; }
 public DbSet<Quiz> Quizzes { get; set; }
+public DbSet<QuizResult> QuizResults { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
