@@ -2,6 +2,7 @@
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -200,14 +201,18 @@ namespace Recrutement_api.Services.AI
             return new
             {
                 score        = analyse.Score,
+                domainFit   = aiResult?.DomainFit,
+                technical   = aiResult?.Technical,
+                experience  = aiResult?.Experience,
                 statutAuto   = nouveauStatut ?? "unchanged",
                 message      = nouveauStatut switch
                 {
                     "Refusée"  => "Score too low — application automatically rejected.",
                     "En cours" => "Excellent score — application moved to In Review.",
                     _          => "Score saved — application remains pending."
-                }
-            };
+                }};
+            // Sous-scores : renvoyés au client uniquement (non persistés — pas de champs sur AnalyseCV).
+           
         }
 
         // ── Score en lecture seule (retourne le score sauvegardé sans recalculer) ──
@@ -249,6 +254,8 @@ namespace Recrutement_api.Services.AI
         }
 
         // ── Résumé (TICKET-025) ────────────────────────────────────────────────
+        // Le résumé est contextualisé : on envoie aussi le titre + la description
+        // de l'offre pour que l'IA croise le profil avec les exigences du poste.
         public async Task<object> SummarizeCvAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
@@ -256,7 +263,19 @@ namespace Recrutement_api.Services.AI
             if (!HasUsableText(analyse))
                 return new { summary = "", warning = "PDF illisible ou scanné" };
 
-            var aiResult = await PostToAiAsync<AiSummaryResponse>("summarize", new { texteExtrait = analyse.TexteExtrait });
+            var offre = (await _dbContext.Candidatures
+                .Include(c => c.Offre)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
+
+            var payload = new
+            {
+                texteExtrait = analyse.TexteExtrait,
+                titreOffre   = offre?.Titre,
+                description  = offre?.Description,
+                typeContrat  = offre?.TypeContrat.ToString()
+            };
+
+            var aiResult = await PostToAiAsync<AiSummaryResponse>("summarize", payload);
 
             analyse.Resume = aiResult?.Summary ?? "";
             _dbContext.AnalysesCV.Update(analyse);
@@ -345,10 +364,22 @@ namespace Recrutement_api.Services.AI
         }
 
                 // ── DTOs ───────────────────────────────────────────────────────────────
-        private class AiScoreResponse      { public float  Score          { get; set; } }
+        private class AiScoreResponse
+        {
+            public float Score { get; set; }
+
+            [JsonPropertyName("domain_fit")]
+            public float? DomainFit { get; set; }
+
+            [JsonPropertyName("technical")]
+            public float? Technical { get; set; }
+
+            [JsonPropertyName("experience")]
+            public float? Experience { get; set; }
+        }
         private class AiClassifyResponse   { public string Classification { get; set; } = ""; }
         private class AiSummaryResponse    { public string Summary        { get; set; } = ""; }
-        private class AiSkillsResponse     { public string[] Skills       { get; set; } = Array.Empty<string>(); }
+        private class AiSkillsResponse     { public string[] Skills        { get; set; } = Array.Empty<string>(); }
         private class AiExperienceResponse { public object[] Experiences  { get; set; } = Array.Empty<object>(); }
         private class AiCompaniesResponse  { public object[] Companies    { get; set; } = Array.Empty<object>(); }
         private class AiCertificationsResponse { public object[] Certifications { get; set; } = Array.Empty<object>(); }

@@ -246,7 +246,7 @@ namespace Recrutement_api.Services.Entretien
                 entretien.Candidature.Candidat.Utilisateur.Nom, dateUTC);
 
             var frontendUrl   = _config["Frontend:Url"] ?? "http://localhost:5173";
-            var entretienUrl  = $"{frontendUrl}/interview/{token}/rejoindre";
+            var entretienUrl  = $"{frontendUrl}/entretien-ia?token={Uri.EscapeDataString(token)}";
 
             return new
             {
@@ -318,18 +318,41 @@ namespace Recrutement_api.Services.Entretien
                 await _db.SaveChangesAsync();
             }
 
-            // URL de l'avatar IA (page entretien virtuel)
+            // URL de la salle d'entretien (avatar 3D + média candidat)
             var frontendUrl  = _config["Frontend:Url"] ?? "http://localhost:5173";
-            var avatarUrl    = $"{frontendUrl}/interview/{token}/live";
+            var avatarUrl    = $"{frontendUrl}/entretien-ia?token={Uri.EscapeDataString(token)}";
+
+            var rawAvatar = await _db.CandidateProfiles
+                .AsNoTracking()
+                .Where(p => p.CandidatId == entretien.Candidature.CandidatId)
+                .Select(p => p.AvatarUrl)
+                .FirstOrDefaultAsync();
+
+            var photoProfilUrl = ResolvePublicAssetUrl(rawAvatar);
 
             return new EntretienRejoindreResult
             {
-                EstActif      = estActif,
-                DateScheduled = entretien.DateScheduled,
-                LienEntretien = estActif ? avatarUrl : null,
-                NomCandidat   = entretien.Candidature.Candidat.Utilisateur.Nom,
-                TitreOffre    = entretien.Candidature.Offre.Titre
+                EstActif        = estActif,
+                DateScheduled   = entretien.DateScheduled,
+                LienEntretien   = estActif ? avatarUrl : null,
+                NomCandidat     = entretien.Candidature.Candidat.Utilisateur.Nom,
+                TitreOffre      = entretien.Candidature.Offre.Titre,
+                PhotoProfilUrl  = photoProfilUrl
             };
+        }
+
+        /// <summary>Construit une URL exploitable par le navigateur (canvas + crossOrigin).</summary>
+        private string? ResolvePublicAssetUrl(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            raw = raw.Trim();
+            if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return raw;
+
+            var origin = _config["AppSettings:PublicOrigin"]?.TrimEnd('/')
+                         ?? "http://localhost:5202";
+            return raw.StartsWith('/') ? $"{origin}{raw}" : $"{origin}/{raw}";
         }
     }
 }

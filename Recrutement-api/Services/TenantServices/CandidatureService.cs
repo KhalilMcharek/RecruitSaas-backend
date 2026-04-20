@@ -86,13 +86,18 @@ namespace Recrutement_api.Services.TenantServices
             if (scoreMax.HasValue)
                 query = query.Where(c => c.AnalyseCV != null && c.AnalyseCV.Score <= scoreMax.Value);
 
-            return await query
-                .OrderByDescending(c => c.CreeLe)
-                .Select(c => new CandidatureResponseDto
+            return await (
+                from c in query
+                join p in _context.CandidateProfiles.AsNoTracking()
+                    on c.CandidatId equals p.CandidatId into profileJoin
+                from p in profileJoin.DefaultIfEmpty()
+                orderby c.CreeLe descending
+                select new CandidatureResponseDto
                 {
                     Id            = c.Id,
                     NomCandidat   = c.Candidat.Utilisateur.Nom,
                     EmailCandidat = c.Candidat.Utilisateur.Email,
+                    AvatarUrl     = p != null ? p.AvatarUrl : null,
                     OffreId       = c.OffreId,
                     TitreOffre    = c.Offre.Titre,
                     EntrepriseId  = c.Offre.EntrepriseId,
@@ -174,20 +179,25 @@ namespace Recrutement_api.Services.TenantServices
         {
             Console.WriteLine($"[Direct] CandidatId reçu = {candidatId}");
 
-            var result = await _context.Candidatures
-                .Where(c => c.CandidatId == candidatId)
-                .OrderByDescending(c => c.CreeLe)
-                .Select(c => new CandidatureResponseDto
+            var result = await (
+                from c in _context.Candidatures.Where(x => x.CandidatId == candidatId)
+                join p in _context.CandidateProfiles.AsNoTracking()
+                    on c.CandidatId equals p.CandidatId into profileJoin
+                from p in profileJoin.DefaultIfEmpty()
+                orderby c.CreeLe descending
+                select new CandidatureResponseDto
                 {
                     Id            = c.Id,
                     NomCandidat   = c.Candidat.Utilisateur.Nom,
                     EmailCandidat = c.Candidat.Utilisateur.Email,
+                    AvatarUrl     = p != null ? p.AvatarUrl : null,
                     OffreId       = c.OffreId,
                     TitreOffre    = c.Offre.Titre,
                     EntrepriseId  = c.Offre.EntrepriseId,
                     NomEntreprise = c.Offre.Entreprise.Nom,
                     Statut        = c.Statut,
                     CreeLe        = c.CreeLe,
+                    CvUrl         = c.CvUrl ?? string.Empty,
                     ScoreIA       = c.AnalyseCV != null ? c.AnalyseCV.Score : null
                 })
                 .ToListAsync();

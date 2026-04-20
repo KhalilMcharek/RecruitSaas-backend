@@ -78,8 +78,19 @@ public class ExpertController : ControllerBase
     [HttpDelete("experts/{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        await _service.DeleteExpertAsync(id, GetTenantId());
-        return NoContent();
+        try
+        {
+            await _service.DeleteExpertAsync(id, GetTenantId());
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("experts/{id}/assign-offre")]

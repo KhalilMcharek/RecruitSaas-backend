@@ -8,6 +8,9 @@ namespace Recrutement_api.DTOs.Candidature
         public string NomCandidat { get; set; }
         public string EmailCandidat { get; set; }
 
+        /// <summary>Photo depuis CandidateProfiles.AvatarUrl (nullable).</summary>
+        public string? AvatarUrl { get; set; }
+
         // Offre
         public Guid OffreId { get; set; }
         public string TitreOffre { get; set; }
