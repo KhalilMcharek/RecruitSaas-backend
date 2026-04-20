@@ -21,5 +21,8 @@ namespace Recrutement_api.Services.Entretien
         public string? LienEntretien { get; set; }
         public string? NomCandidat { get; set; }
         public string? TitreOffre { get; set; }
+
+        /// <summary>URL absolue de la photo de profil (CandidateProfiles) pour comparaison visage côté client.</summary>
+        public string? PhotoProfilUrl { get; set; }
     }
 }

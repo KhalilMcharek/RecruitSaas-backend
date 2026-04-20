@@ -215,19 +215,62 @@ var items = expertsList.Select(u =>
     {
         var tenantId = await ResolveTenantIdAsync(userOrTenantId);
 
-        var expert = await _context.Experts
-            .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId)
-            ?? throw new KeyNotFoundException("Expert introuvable");
+        Console.WriteLine($"[DELETE-EXPERT] id={id} tenantId={tenantId}");
 
+        // On charge l'expert + ses dépendances pour pouvoir les supprimer manuellement
+        // au cas où la cascade EF ne s'applique pas (par exemple si un OnDelete=Restrict
+        // a été créé via une migration).
+        var expert = await _context.Experts
+            .Include(e => e.Assignations)
+            .Include(e => e.Avis)
+            .FirstOrDefaultAsync(e => e.Id == id && e.TenantId == tenantId);
+
+        if (expert == null)
+        {
+            Console.WriteLine($"[DELETE-EXPERT] Expert introuvable pour tenant {tenantId}");
+            throw new KeyNotFoundException("Expert introuvable");
+        }
+
+        Console.WriteLine($"[DELETE-EXPERT] Trouvé : {expert.Email} | Assignations={expert.Assignations.Count} | Avis={expert.Avis.Count}");
+
+        // 1) Supprime les avis liés à cet expert
+        if (expert.Avis.Count > 0)
+            _context.AvisExperts.RemoveRange(expert.Avis);
+
+        // 2) Supprime les assignations
+        if (expert.Assignations.Count > 0)
+            _context.AssignationsExperts.RemoveRange(expert.Assignations);
+
+        // 3) Supprime les notifications adressées à cet expert (pas de FK déclarée → manuel)
+        var notifs = await _context.Set<Notification>()
+            .Where(n => n.ExpertId == id)
+            .ToListAsync();
+        if (notifs.Count > 0)
+            _context.Set<Notification>().RemoveRange(notifs);
+
+        // 4) Supprime l'expert lui-même
+        _context.Experts.Remove(expert);
+
+        // 5) Supprime l'utilisateur associé (si présent et non partagé)
+        Utilisateur? utilisateur = null;
         if (expert.UtilisateurId.HasValue)
         {
-            var utilisateur = await _context.Utilisateurs.FindAsync(expert.UtilisateurId.Value);
+            utilisateur = await _context.Utilisateurs.FindAsync(expert.UtilisateurId.Value);
             if (utilisateur != null)
                 _context.Utilisateurs.Remove(utilisateur);
         }
 
-        _context.Experts.Remove(expert);
-        await _context.SaveChangesAsync();
+        try
+        {
+            var affected = await _context.SaveChangesAsync();
+            Console.WriteLine($"[DELETE-EXPERT] OK — {affected} lignes affectées");
+        }
+        catch (DbUpdateException ex)
+        {
+            Console.WriteLine($"[DELETE-EXPERT] ÉCHEC SaveChanges : {ex.GetBaseException().Message}");
+            throw new InvalidOperationException(
+                $"Impossible de supprimer cet expert : {ex.GetBaseException().Message}", ex);
+        }
     }
 
     private static ExpertResponseDto ToDto(Expert e, AssignationExpert? assignation = null) => new()

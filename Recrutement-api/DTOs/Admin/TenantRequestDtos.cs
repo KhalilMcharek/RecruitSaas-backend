@@ -8,6 +8,7 @@ namespace Recrutement_api.DTOs.TenantRequest
         public string? Owner { get; set; }
         public string? Industry { get; set; }
         public string? Status { get; set; }
+        public string? LogoUrl { get; set; }
     }
 
     public class TenantRequestDetailDto
