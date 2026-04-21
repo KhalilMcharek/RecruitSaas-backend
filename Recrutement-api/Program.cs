@@ -19,7 +19,6 @@ using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
-<<<<<<< HEAD
 // Email config
 builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
 
@@ -31,8 +30,6 @@ builder.Configuration["EmailSettings:FromEmail"] = "oumaymametoui3@gmail.com";
 builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
 builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
 
-=======
->>>>>>> main
 // Serilog
 Directory.CreateDirectory("logs");
 Log.Logger = new LoggerConfiguration()
@@ -60,7 +57,6 @@ builder.Services.AddHttpClient(); // ✅ une seule fois
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
-<<<<<<< HEAD
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
 // =============================
 // SERVICES
@@ -69,8 +65,6 @@ builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionSe
 // Controllers + JSON
 // 🔧 Remplacez votre bloc AddCors par celui-ci :
 
-=======
->>>>>>> main
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
 builder.Services.AddScoped<
     Recrutement_api.Services.CvExtraction.ICvExtractionService,
@@ -157,14 +151,11 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
-<<<<<<< HEAD
 builder.Services.AddScoped<ISavedJobService, SavedJobService>();
 builder.Services.AddScoped<NotificationService>();
 
 builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
                             Recrutement_api.Services.Entretien.EntretienService>();
-=======
->>>>>>> main
 
 // Nouveaux services
 builder.Services.AddScoped<
