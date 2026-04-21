@@ -180,6 +180,8 @@ namespace Recrutement_api.Services.TenantServices
             return (true, "Entreprise supprimée avec succès", new { company.Id, company.Nom });
         }
 
+
+
         // ============================================================
         // MÉTHODES PRIVÉES
         // ============================================================

@@ -19,6 +19,17 @@ using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Email config
+builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
+
+builder.Configuration["EmailSettings:SmtpPort"] = "587";
+builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
+builder.Configuration["EmailSettings:SmtpUsername"] = "a89322001@smtp-brevo.com";
+builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-f51c962ba5c5c8f58dd1f373d73ec9b7503cce2605b9b060534629481b315611-cHSGiZH61fwXWVEn";
+builder.Configuration["EmailSettings:FromEmail"] = "oumaymametoui3@gmail.com";
+builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
+builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
+
 // Serilog
 Directory.CreateDirectory("logs");
 Log.Logger = new LoggerConfiguration()
@@ -46,6 +57,14 @@ builder.Services.AddHttpClient(); // ✅ une seule fois
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
+builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
+// =============================
+// SERVICES
+// =============================
+
+// Controllers + JSON
+// 🔧 Remplacez votre bloc AddCors par celui-ci :
+
 builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
 builder.Services.AddScoped<
     Recrutement_api.Services.CvExtraction.ICvExtractionService,
@@ -55,9 +74,16 @@ builder.Services.AddScoped<
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:8080", "http://localhost:3000")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+        policy.WithOrigins(
+            "http://localhost:5173",  // Vite par défaut
+            "http://localhost:8080",  // Vue CLI
+            "http://localhost:3000",  // React
+            "https://localhost:5173"  // Si vous utilisez HTTPS en frontend
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()  // ✅ CRITIQUE : requis pour les tokens JWT
+    );
 });
 
 // Controllers
@@ -125,6 +151,11 @@ builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
+builder.Services.AddScoped<ISavedJobService, SavedJobService>();
+builder.Services.AddScoped<NotificationService>();
+
+builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
+                            Recrutement_api.Services.Entretien.EntretienService>();
 
 // Nouveaux services
 builder.Services.AddScoped<

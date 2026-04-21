@@ -143,6 +143,62 @@ namespace Recrutement_api.Migrations
                     b.ToTable("Candidats");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.CandidatNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LuLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("OffreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("QuizToken")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatId");
+
+                    b.HasIndex("CreeLe");
+
+                    b.HasIndex("IsRead");
+
+                    b.ToTable("CandidatNotifications");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -542,6 +598,126 @@ namespace Recrutement_api.Migrations
                     b.ToTable("OffresEmploi");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.Quiz", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Instructions")
+                        .HasColumnType("text");
+
+                    b.Property<string>("QuestionsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("QuizToken")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("ScheduledDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TimePerQuestion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatureId");
+
+                    b.HasIndex("QuizToken")
+                        .IsUnique();
+
+                    b.ToTable("Quizzes");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.QuizResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnswersJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Grade")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<float>("Percentage")
+                        .HasColumnType("real");
+
+                    b.Property<Guid>("QuizId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("QuizToken")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TimeSpentJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizId");
+
+                    b.ToTable("QuizResults");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidatId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OffreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OffreId");
+
+                    b.HasIndex("CandidatId", "OffreId")
+                        .IsUnique();
+
+                    b.ToTable("SavedJobs");
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -718,6 +894,15 @@ namespace Recrutement_api.Migrations
                     b.Navigation("Utilisateur");
                 });
 
+            modelBuilder.Entity("Recrutement_api.Models.CandidatNotification", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidat", null)
+                        .WithMany()
+                        .HasForeignKey("CandidatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Recrutement_api.Models.CandidateProfile", b =>
                 {
                     b.HasOne("Recrutement_api.Models.Candidat", "Candidat")
@@ -832,6 +1017,47 @@ namespace Recrutement_api.Migrations
                         .IsRequired();
 
                     b.Navigation("Entreprise");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.Quiz", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidature", "Candidature")
+                        .WithMany()
+                        .HasForeignKey("CandidatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidature");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.QuizResult", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Quiz", "Quiz")
+                        .WithMany()
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
+                });
+
+            modelBuilder.Entity("Recrutement_api.Models.SavedJob", b =>
+                {
+                    b.HasOne("Recrutement_api.Models.Candidat", "Candidat")
+                        .WithMany()
+                        .HasForeignKey("CandidatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Recrutement_api.Models.OffreEmploi", "Offre")
+                        .WithMany()
+                        .HasForeignKey("OffreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidat");
+
+                    b.Navigation("Offre");
                 });
 
             modelBuilder.Entity("Recrutement_api.Models.Tenant", b =>

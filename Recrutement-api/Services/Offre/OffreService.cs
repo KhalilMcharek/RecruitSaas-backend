@@ -12,17 +12,23 @@ namespace Recrutement_api.Services
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
         private readonly ILinkGeneratorService _linkGenerator;
+        private readonly NotificationService _notificationService;  // ← INJECTÉ
 
         public OffreService(
             ApplicationDbContext context,
             ICurrentUserService currentUser,
-            ILinkGeneratorService linkGenerator)
+            ILinkGeneratorService linkGenerator,
+            NotificationService notificationService)  // ← AJOUTÉ AU CONSTRUCTEUR
         {
             _context = context;
             _currentUser = currentUser;
             _linkGenerator = linkGenerator;
+            _notificationService = notificationService;  // ← ASSIGNATION
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // CRÉER UNE OFFRE
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> CreerOffreAsync(OffreCreateDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -41,7 +47,7 @@ namespace Recrutement_api.Services
                 Description = dto.Description,
                 Localisation = dto.Localisation,
                 TypeContrat = dto.TypeContrat,
-                EstPublie = false,
+                EstPublie = dto.EstPublie,  // Si publiée directement
                 IsPublicLinkEnabled = false,
                 CreeLe = DateTime.UtcNow
             };
@@ -49,32 +55,23 @@ namespace Recrutement_api.Services
             _context.OffresEmploi.Add(offre);
             await _context.SaveChangesAsync();
 
+            // 🔔 NOTIFIER si l'offre est créée directement comme publiée
+            if (offre.EstPublie)
+            {
+                await _notificationService.NotifyNewOffreAsync(
+                    offreId: offre.Id,
+                    offreTitre: offre.Titre,
+                    entrepriseNom: entreprise.Nom ?? "Unknown",
+                    localisation: offre.Localisation
+                );
+            }
+
             return MapToResponse(offre);
         }
 
-        private OffreResponseDto MapToResponse(OffreEmploi o)
-        {
-            return new OffreResponseDto
-            {
-                Id = o.Id,
-                Titre = o.Titre,
-                Description = o.Description,
-                Localisation = o.Localisation,
-                TypeContrat = o.TypeContrat,
-                EstPublie = o.EstPublie,
-                IsPublicLinkEnabled = o.IsPublicLinkEnabled,
-                PublicToken = o.PublicToken,
-                LienPublic = o.IsPublicLinkEnabled && !string.IsNullOrEmpty(o.PublicToken)
-                    ? _linkGenerator.GenerateOfferLink(o.PublicToken)
-                    : null,
-                PublicLinkExpiresAt = o.PublicLinkExpiresAt,
-                CreeLe = o.CreeLe,
-                EntrepriseId = o.EntrepriseId,
-                NomEntreprise = o.Entreprise?.Nom,
-                NombreCandidats = o.Candidatures?.Count ?? 0
-            };
-        }
-
+        // ─────────────────────────────────────────────────────────────
+        // OBTENIR UNE OFFRE PAR ID
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> ObtenirOffreParIdAsync(Guid offreId)
         {
             var offre = await _context.OffresEmploi
@@ -112,10 +109,12 @@ namespace Recrutement_api.Services
                 };
             }
 
-         
-
             return response;
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // OBTENIR LES OFFRES PAR TENANT
+        // ─────────────────────────────────────────────────────────────
         public async Task<List<OffreResponseDto>> ObtenirOffresParTenantAsync(Guid? entrepriseId, string? search, string? filter)
         {
             var tenantId = _currentUser.TenantId;
@@ -157,6 +156,9 @@ namespace Recrutement_api.Services
             return offres.Select(MapToResponse).ToList();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // CHANGER LE STATUT DE PUBLICATION (DRAFT ↔ PUBLIÉE)
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> ChangerStatutPublicationAsync(Guid offreId, bool publier)
         {
             var tenantId = _currentUser.TenantId;
@@ -169,12 +171,27 @@ namespace Recrutement_api.Services
             if (offre == null)
                 throw new Exception("Offre introuvable");
 
+            var ancienStatut = offre.EstPublie;
             offre.EstPublie = publier;
             await _context.SaveChangesAsync();
+
+            // 🔔 NOTIFIER LES CANDIDATS si l'offre vient d'être publiée
+            if (publier && !ancienStatut)
+            {
+                await _notificationService.NotifyNewOffreAsync(
+                    offreId: offre.Id,
+                    offreTitre: offre.Titre,
+                    entrepriseNom: offre.Entreprise?.Nom ?? "Unknown",
+                    localisation: offre.Localisation
+                );
+            }
 
             return MapToResponse(offre);
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // TOGGLE PUBLIC LINK
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> TogglePublicLinkAsync(Guid offreId, bool enabled, DateTime? expiresAt = null)
         {
             var tenantId = _currentUser.TenantId;
@@ -199,6 +216,9 @@ namespace Recrutement_api.Services
             return MapToResponse(offre);
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // REGENERER TOKEN PUBLIC
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> RegeneratePublicTokenAsync(Guid offreId)
         {
             var tenantId = _currentUser.TenantId;
@@ -216,6 +236,9 @@ namespace Recrutement_api.Services
             return MapToResponse(offre);
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // OBTENIR OFFRE PUBLIQUE PAR TOKEN
+        // ─────────────────────────────────────────────────────────────
         public async Task<PublicOffreResponseDto> GetPublicOffreByTokenAsync(string token)
         {
             var offre = await _context.OffresEmploi
@@ -227,7 +250,6 @@ namespace Recrutement_api.Services
             if (offre == null)
                 throw new Exception("Offre introuvable");
 
-            // 🛡️ Security Validation
             if (!offre.EstPublie)
                 throw new Exception("Cette offre n'est plus disponible (brouillon).");
 
@@ -265,11 +287,9 @@ namespace Recrutement_api.Services
             };
         }
 
-        private string GenerateSecureToken()
-        {
-            return Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        }
-
+        // ─────────────────────────────────────────────────────────────
+        // ASSIGNER DES EXPERTS À UNE OFFRE
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> AssignerExpertsAsync(Guid offreId, AssignationExpertDto dto)
         {
             var offre = await _context.OffresEmploi
@@ -283,8 +303,9 @@ namespace Recrutement_api.Services
             var expertsValides = await _context.Experts
                      .Where(e => dto.ExpertIds.Contains(e.Id)
                               && e.CompanyId == offre.EntrepriseId)
-                                    .Select(e => e.Id)
-                                     .ToListAsync();
+                     .Select(e => e.Id)
+                     .ToListAsync();
+
             if (!expertsValides.Any())
                 throw new Exception("Aucun expert valide appartenant à cette entreprise n'a été trouvé.");
 
@@ -325,6 +346,9 @@ namespace Recrutement_api.Services
             };
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // RECHERCHER DES EXPERTS
+        // ─────────────────────────────────────────────────────────────
         public async Task<object> RechercherExpertsAsync(Guid offreId, string? search)
         {
             var offre = await _context.OffresEmploi
@@ -360,6 +384,9 @@ namespace Recrutement_api.Services
             }).ToList();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // MODIFIER UNE OFFRE
+        // ─────────────────────────────────────────────────────────────
         public async Task<OffreResponseDto> ModifierOffreAsync(Guid offreId, OffreUpdateDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -385,6 +412,9 @@ namespace Recrutement_api.Services
             return MapToResponse(offre);
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // SUPPRIMER UNE ASSIGNATION EXPERT
+        // ─────────────────────────────────────────────────────────────
         public async Task SupprimerAssignationExpertAsync(Guid offreId, Guid expertId)
         {
             var tenantId = _currentUser.TenantId;
@@ -403,10 +433,12 @@ namespace Recrutement_api.Services
                 throw new Exception("Assignation non trouvée");
 
             _context.AssignationsExperts.Remove(assignation);
-
             await _context.SaveChangesAsync();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // SUPPRIMER UNE OFFRE
+        // ─────────────────────────────────────────────────────────────
         public async Task SupprimerOffreAsync(Guid offreId)
         {
             var tenantId = _currentUser.TenantId;
@@ -419,10 +451,12 @@ namespace Recrutement_api.Services
                 throw new Exception("Offre introuvable");
 
             _context.OffresEmploi.Remove(offre);
-
             await _context.SaveChangesAsync();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // INITIALISER UN FORMULAIRE
+        // ─────────────────────────────────────────────────────────────
         public async Task<FormulaireResponseDto> InitialiserFormulaireAsync(Guid offreId)
         {
             var tenantId = _currentUser.TenantId;
@@ -455,6 +489,9 @@ namespace Recrutement_api.Services
             };
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // AJOUTER DES CHAMPS PERSONNALISÉS
+        // ─────────────────────────────────────────────────────────────
         public async Task<List<ChampPersonnaliseResponseDto>> AjouterChampsAsync(Guid offreId, List<ChampPersonnaliseDto> dtos)
         {
             var tenantId = _currentUser.TenantId;
@@ -491,7 +528,6 @@ namespace Recrutement_api.Services
             }
 
             _context.ChampsPersonnalises.AddRange(nouveauxChamps);
-
             await _context.SaveChangesAsync();
 
             return nouveauxChamps.Select(c => new ChampPersonnaliseResponseDto
@@ -506,6 +542,9 @@ namespace Recrutement_api.Services
             }).ToList();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // MODIFIER UN CHAMP PERSONNALISÉ
+        // ─────────────────────────────────────────────────────────────
         public async Task<ChampPersonnaliseResponseDto> ModifierChampAsync(Guid champId, ChampPersonnaliseDto dto)
         {
             var tenantId = _currentUser.TenantId;
@@ -540,6 +579,9 @@ namespace Recrutement_api.Services
             };
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // SUPPRIMER UN CHAMP PERSONNALISÉ
+        // ─────────────────────────────────────────────────────────────
         public async Task SupprimerChampAsync(Guid champId)
         {
             var tenantId = _currentUser.TenantId;
@@ -554,10 +596,12 @@ namespace Recrutement_api.Services
                 throw new Exception("Champ introuvable");
 
             _context.ChampsPersonnalises.Remove(champ);
-
             await _context.SaveChangesAsync();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // MODIFIER L'ORDRE DES CHAMPS
+        // ─────────────────────────────────────────────────────────────
         public async Task ModifierOrdreChampsAsync(Guid formulaireId, List<ModifierOrdreChampDto> dtos)
         {
             var tenantId = _currentUser.TenantId;
@@ -578,7 +622,6 @@ namespace Recrutement_api.Services
             foreach (var dto in dtos)
             {
                 var champ = champs.FirstOrDefault(c => c.Id == dto.ChampId);
-
                 if (champ == null)
                     throw new Exception($"Champ {dto.ChampId} introuvable");
 
@@ -588,17 +631,50 @@ namespace Recrutement_api.Services
             await _context.SaveChangesAsync();
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // OBTENIR LES ENTREPRISES DU TENANT
+        // ─────────────────────────────────────────────────────────────
         public async Task<List<Entreprise>> GetTenantEntreprisesAsync()
         {
             var tenantId = _currentUser.TenantId;
             return await _context.Entreprises
-           .Where(e => e.TenantId == tenantId)
-           .Select(e => new Entreprise
-           {
-               Id = e.Id,
-               Nom = e.Nom
-           })
-           .ToListAsync();
+                .Where(e => e.TenantId == tenantId)
+                .Select(e => new Entreprise { Id = e.Id, Nom = e.Nom })
+                .ToListAsync();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // MAPPER VERS DTO DE RÉPONSE (Helper privé)
+        // ─────────────────────────────────────────────────────────────
+        private OffreResponseDto MapToResponse(OffreEmploi o)
+        {
+            return new OffreResponseDto
+            {
+                Id = o.Id,
+                Titre = o.Titre,
+                Description = o.Description,
+                Localisation = o.Localisation,
+                TypeContrat = o.TypeContrat,
+                EstPublie = o.EstPublie,
+                IsPublicLinkEnabled = o.IsPublicLinkEnabled,
+                PublicToken = o.PublicToken,
+                LienPublic = o.IsPublicLinkEnabled && !string.IsNullOrEmpty(o.PublicToken)
+                    ? _linkGenerator.GenerateOfferLink(o.PublicToken)
+                    : null,
+                PublicLinkExpiresAt = o.PublicLinkExpiresAt,
+                CreeLe = o.CreeLe,
+                EntrepriseId = o.EntrepriseId,
+                NomEntreprise = o.Entreprise?.Nom,
+                NombreCandidats = o.Candidatures?.Count ?? 0
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // GÉNÉRER UN TOKEN SÉCURISÉ (Helper privé)
+        // ─────────────────────────────────────────────────────────────
+        private string GenerateSecureToken()
+        {
+            return Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         }
     }
 }

@@ -22,21 +22,24 @@ namespace Recrutement_api.Services.AI
         private readonly ICvExtractionService _cvExtractionService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<AiOrchestratorService> _logger;
+        private readonly NotificationService _notificationService; // ← AJOUTÉ
         private readonly string _aiBaseUrl = "http://127.0.0.1:8000/ai";
 
         public AiOrchestratorService(
             ApplicationDbContext dbContext,
             ICvExtractionService cvExtractionService,
             HttpClient httpClient,
-            ILogger<AiOrchestratorService> logger)
+            ILogger<AiOrchestratorService> logger,
+            NotificationService notificationService) // ← AJOUTÉ
         {
-            _dbContext           = dbContext;
-            _cvExtractionService = cvExtractionService;
-            _httpClient          = httpClient;
-            _logger              = logger;
+            _dbContext            = dbContext;
+            _cvExtractionService  = cvExtractionService;
+            _httpClient           = httpClient;
+            _logger               = logger;
+            _notificationService  = notificationService; // ← AJOUTÉ
         }
 
-        // ── Helpers ────────────────────────────────────────────────────────────
+        // ── Helpers ──────────────────────────────────────────────────
 
         /// <summary>
         /// Retourne l'AnalyseCV avec le texte extrait.
@@ -135,20 +138,22 @@ namespace Recrutement_api.Services.AI
             return JsonSerializer.Deserialize<T>(json, options);
         }
 
+        // ── Score + changement de statut automatique ─────────────────
+        // Score < 30   → "Refusée"
+        // Score 30–80  → reste "Nouvelle" (pending)
+        // Score > 80   → "En cours" (In Review)
         // ── Score (TICKET-026) ─────────────────────────────────────────────────
         public async Task<object> CalculateScoreAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
 
-            if (!HasUsableText(analyse))
-            {
-                _logger.LogWarning($"[AI] Score : texte vide pour {candidatureId}");
-                return new { score = 0, warning = "PDF illisible ou scanné" };
-            }
-
-            var offre = (await _dbContext.Candidatures
+            // Charger la candidature avec Offre ET Candidat pour la notification
+            var candidature = await _dbContext.Candidatures
                 .Include(c => c.Offre)
-                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
+                .Include(c => c.Candidat)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId);
+
+            var offre = candidature?.Offre;
 
             var payload  = new { texteExtrait = analyse.TexteExtrait, titreOffre = offre?.Titre, description = offre?.Description, typeContrat = offre?.TypeContrat.ToString() };
             var aiResult = await PostToAiAsync<AiScoreResponse>("score", payload);
@@ -156,16 +161,58 @@ namespace Recrutement_api.Services.AI
             // Arrondi à l'entier pour éviter les micro-variations
             analyse.Score = (float)Math.Round(aiResult?.Score ?? 0);
             _dbContext.AnalysesCV.Update(analyse);
+
+            // 2 — ★ Déterminer le nouveau statut selon le score
+            string? nouveauStatut = aiResult.Score switch
+            {
+                < 30  => "Refusée",
+                > 80  => "En cours",
+                _     => null   // 30–80 : on ne change pas le statut
+            };
+
+            // 3 — Appliquer le statut si nécessaire et notifier
+            if (nouveauStatut != null && candidature != null)
+            {
+                var ancienStatut = candidature.Statut;
+
+                if (ancienStatut != nouveauStatut)
+                {
+                    candidature.Statut = nouveauStatut;
+
+                    // ★ Notifier le candidat (même pattern que ChangerStatutAsync)
+                    if (candidature.Candidat != null)
+                    {
+                        await _notificationService.NotifyStatutChangeAsync(
+                            candidatId:    candidature.Candidat.Id,
+                            candidatureId: candidature.Id,
+                            offreTitre:    offre?.Titre ?? "Unknown Position",
+                            nouveauStatut: nouveauStatut,
+                            offreId:       offre?.Id
+                        );
+                    }
+
+                    _logger.LogInformation(
+                        $"[AI Score] Candidature {candidatureId} → score={aiResult.Score} → statut={nouveauStatut}");
+                }
+            }
+
             await _dbContext.SaveChangesAsync();
 
-            // Sous-scores : renvoyés au client uniquement (non persistés — pas de champs sur AnalyseCV).
             return new
             {
-                score       = analyse.Score,
+                score        = analyse.Score,
                 domainFit   = aiResult?.DomainFit,
                 technical   = aiResult?.Technical,
-                experience  = aiResult?.Experience
-            };
+                experience  = aiResult?.Experience,
+                statutAuto   = nouveauStatut ?? "unchanged",
+                message      = nouveauStatut switch
+                {
+                    "Refusée"  => "Score too low — application automatically rejected.",
+                    "En cours" => "Excellent score — application moved to In Review.",
+                    _          => "Score saved — application remains pending."
+                }};
+            // Sous-scores : renvoyés au client uniquement (non persistés — pas de champs sur AnalyseCV).
+           
         }
 
         // ── Score en lecture seule (retourne le score sauvegardé sans recalculer) ──
@@ -242,6 +289,16 @@ namespace Recrutement_api.Services.AI
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
 
+            var offre = (await _dbContext.Candidatures
+                .Include(c => c.Offre)
+                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
+
+            var payload  = new
+            {
+                texteExtrait = analyse.TexteExtrait,
+                titreOffre   = offre?.Titre,
+                description  = offre?.Description
+            };
             if (!HasUsableText(analyse))
                 return new { skills = Array.Empty<string>(), warning = "PDF illisible ou scanné" };
 

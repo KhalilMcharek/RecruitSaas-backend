@@ -249,4 +249,11 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto
     await _context.SaveChangesAsync();
 
     return Ok(new { success = true, message = "Mot de passe mis à jour avec succès." });
-}}}
+
+
+
+}
+
+
+
+}}

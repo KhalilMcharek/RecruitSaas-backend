@@ -10,7 +10,6 @@ using Recrutement_api.Models;
 
 namespace Recrutement_api.Services.CandidatServices
 {
-    // ✅ Exception dédiée → le controller retourne 409 Conflict
     public class AlreadyAppliedException : Exception
     {
         public AlreadyAppliedException() : base("Vous avez déjà postulé à cette offre.") { }
@@ -22,7 +21,6 @@ namespace Recrutement_api.Services.CandidatServices
         private readonly Cloudinary _cloudinary;
         private readonly ILogger<CandidatService> _logger;
 
-        // Extensions traitées comme image par Cloudinary
         private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             "jpg", "jpeg", "png", "gif", "webp", "bmp",
@@ -96,11 +94,9 @@ namespace Recrutement_api.Services.CandidatServices
             var dejaPostule = await _context.Candidatures
                 .AnyAsync(c => c.OffreId == dto.OffreId && c.CandidatId == candidat.Id);
 
-            // ✅ Lance AlreadyAppliedException → interceptée par le controller → 409
             if (dejaPostule)
                 throw new AlreadyAppliedException();
 
-            // Upload CV sur Cloudinary (image OU raw selon extension)
             string cvUrl = await UploadToCloudinaryAsync(dto.Cv);
 
             var candidature = new Candidature
@@ -126,7 +122,7 @@ namespace Recrutement_api.Services.CandidatServices
         }
 
         // ─────────────────────────────────────────────────────────────
-        // Upload image OU raw selon l'extension du fichier
+        // Upload Cloudinary
         // ─────────────────────────────────────────────────────────────
         private async Task<string> UploadToCloudinaryAsync(IFormFile file)
         {
@@ -152,7 +148,6 @@ namespace Recrutement_api.Services.CandidatServices
             }
             else
             {
-                // PDF, DOCX, DOC, ZIP…
                 var result = await _cloudinary.UploadAsync(new RawUploadParams
                 {
                     File       = new FileDescription(file.FileName, stream),
@@ -234,7 +229,7 @@ namespace Recrutement_api.Services.CandidatServices
         }
 
         // ─────────────────────────────────────────────────────────────
-        // Private helper : build formulaire JSON
+        // Helper : build formulaire JSON
         // ─────────────────────────────────────────────────────────────
         private string BuildFormulaireResponsesJson(PostulerDto dto)
         {
@@ -266,23 +261,48 @@ namespace Recrutement_api.Services.CandidatServices
                 ? System.Text.Json.JsonSerializer.Serialize(responses)
                 : "{}";
         }
-        // Dans ICandidatService
 
-// Dans CandidatService
-public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
-{
-    var candidat = await _context.Candidats
-        .FirstOrDefaultAsync(c => c.UtilisateurId == userId);
+        // ─────────────────────────────────────────────────────────────
+        // HasAlreadyAppliedAsync
+        // ─────────────────────────────────────────────────────────────
+        public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
+        {
+            var candidat = await _context.Candidats
+                .FirstOrDefaultAsync(c => c.UtilisateurId == userId);
 
-    if (candidat == null) return false;
+            if (candidat == null) return false;
 
-    return await _context.Candidatures
-        .AnyAsync(c => c.CandidatId == candidat.Id && c.OffreId == offreId);
-}
+            return await _context.Candidatures
+                .AnyAsync(c => c.CandidatId == candidat.Id && c.OffreId == offreId);
+        }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // GET candidature by id for candidate profile
-        // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────
+        // ★★ CancelCandidatureAsync ← NOUVELLE MÉTHODE ★★
+        // ─────────────────────────────────────────────────────────────
+        public async Task<bool> CancelCandidatureAsync(Guid userId, Guid offreId)
+        {
+            // 1. Récupérer le candidat lié à l'utilisateur
+            var candidat = await _context.Candidats
+                .FirstOrDefaultAsync(c => c.UtilisateurId == userId);
+
+            if (candidat == null) return false;
+
+            // 2. Trouver la candidature correspondante
+            var candidature = await _context.Candidatures
+                .FirstOrDefaultAsync(c => c.CandidatId == candidat.Id && c.OffreId == offreId);
+
+            if (candidature == null) return false;
+
+            // 3. Supprimer et sauvegarder
+            _context.Candidatures.Remove(candidature);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // GET candidature by id
+        // ─────────────────────────────────────────────────────────────
         public async Task<object?> GetCandidatureByIdAsync(Guid candidatureId)
         {
             var candidature = await _context.Candidatures
@@ -290,9 +310,9 @@ public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
                 .Include(c => c.Candidat)
                     .ThenInclude(c => c.Utilisateur)
                 .FirstOrDefaultAsync(c => c.Id == candidatureId);
- 
+
             if (candidature == null) return null;
- 
+
             return new
             {
                 candidature.Id,
@@ -305,14 +325,14 @@ public async Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId)
             };
         }
 
-        // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────
         // PATCH candidature statut
-        // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────
         public async Task<bool> UpdateCandidatureStatutAsync(Guid candidatureId, string statut)
         {
             var candidature = await _context.Candidatures.FindAsync(candidatureId);
             if (candidature == null) return false;
- 
+
             candidature.Statut = statut;
             await _context.SaveChangesAsync();
             return true;

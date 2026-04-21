@@ -7,6 +7,7 @@ namespace Recrutement_api.Services.CandidatServices
     {
         Task<object> GetFormulaireAsync(Guid offreId);
 Task<bool> HasAlreadyAppliedAsync(Guid userId, Guid offreId);
+    Task<bool> CancelCandidatureAsync(Guid userId, Guid offreId); // ← Nouvelle méthode
 
         
         Task<PostulerResultDto> PostulerAsync(Guid userId, PostulerDto dto);

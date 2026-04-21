@@ -27,7 +27,10 @@ namespace Recrutement_api.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<TenantProfile>    TenantProfiles    { get; set; }
         public DbSet<CandidateProfile> CandidateProfiles { get; set; }
-
+        public DbSet<SavedJob> SavedJobs { get; set; }
+public DbSet<CandidatNotification> CandidatNotifications { get; set; }
+public DbSet<Quiz> Quizzes { get; set; }
+public DbSet<QuizResult> QuizResults { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -130,6 +133,74 @@ modelBuilder.Entity<AvisExpert>()
     .WithMany(e => e.Avis)
     .HasForeignKey(a => a.ExpertId)
     .OnDelete(DeleteBehavior.Cascade);
+   modelBuilder.Entity<SavedJob>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                entity.HasIndex(e => new { e.CandidatId, e.OffreId })
+                      .IsUnique();
+
+                entity.HasOne(e => e.Candidat)
+                      .WithMany()
+                      .HasForeignKey(e => e.CandidatId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Offre)
+                      .WithMany()
+                      .HasForeignKey(e => e.OffreId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(e => e.SavedAt)
+                      .IsRequired();
+            });
+
+
+// Configuration de la table CandidatNotifications
+            modelBuilder.Entity<CandidatNotification>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                
+                entity.Property(e => e.Type)
+                    .HasMaxLength(100)
+                    .IsRequired();
+                
+                entity.Property(e => e.Title)
+                    .HasMaxLength(200)
+                    .IsRequired();
+                
+                entity.Property(e => e.Body)
+                    .HasMaxLength(500)
+                    .IsRequired();
+                
+                entity.Property(e => e.CreeLe)
+                    .IsRequired();
+                
+                // Index pour les performances
+                entity.HasIndex(e => e.CandidatId);
+                entity.HasIndex(e => e.IsRead);
+                entity.HasIndex(e => e.CreeLe);
+                
+                // Relation avec Candidat (optionnel)
+                entity.HasOne<Candidat>()
+                    .WithMany()
+                    .HasForeignKey(e => e.CandidatId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+
+            // Configuration Quiz
+        modelBuilder.Entity<Quiz>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.QuizToken).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.QuizToken).IsUnique();
+            entity.HasIndex(e => e.CandidatureId);
+            
+            entity.HasOne(e => e.Candidature)
+                  .WithMany()
+                  .HasForeignKey(e => e.CandidatureId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
 
             // Après la relation AvisExpert → Expert déjà existante, ajoutez :
 modelBuilder.Entity<AvisExpert>()
