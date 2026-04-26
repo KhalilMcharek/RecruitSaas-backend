@@ -10,7 +10,7 @@ namespace Recrutement_api.Migrations
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
-        {
+        {/*
             migrationBuilder.CreateTable(
                 name: "Utilisateurs",
                 columns: table => new
@@ -526,6 +526,7 @@ namespace Recrutement_api.Migrations
                 table: "Utilisateurs",
                 column: "Email",
                 unique: true);
+            */
         }
 
         /// <inheritdoc />

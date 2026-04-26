@@ -6,7 +6,6 @@ namespace Recrutement_api.Services.CvExtraction.Extractors
 {
     public class PdfTextExtractor : ITextExtractor
     {
-        public PdfTextExtractor(OcrExtractor ocrExtractor) { }
 
         public async Task<string> ExtractTextFromFileAsync(string filePath)
         {

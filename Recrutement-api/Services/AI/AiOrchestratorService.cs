@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -22,30 +22,22 @@ namespace Recrutement_api.Services.AI
         private readonly ICvExtractionService _cvExtractionService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<AiOrchestratorService> _logger;
-        private readonly NotificationService _notificationService; // ← AJOUTÉ
+
         private readonly string _aiBaseUrl = "http://127.0.0.1:8000/ai";
 
         public AiOrchestratorService(
             ApplicationDbContext dbContext,
             ICvExtractionService cvExtractionService,
             HttpClient httpClient,
-            ILogger<AiOrchestratorService> logger,
-            NotificationService notificationService) // ← AJOUTÉ
+            ILogger<AiOrchestratorService> logger)
         {
             _dbContext            = dbContext;
             _cvExtractionService  = cvExtractionService;
             _httpClient           = httpClient;
             _logger               = logger;
-            _notificationService  = notificationService; // ← AJOUTÉ
         }
 
-        // ── Helpers ──────────────────────────────────────────────────
 
-        /// <summary>
-        /// Retourne l'AnalyseCV avec le texte extrait.
-        /// - Si AnalyseCV null ou TexteExtrait null → extrait une SEULE fois
-        /// - Si TexteExtrait = " " (sentinelle) → PDF déjà tenté, vide → ne re-tente pas
-        /// </summary>
         private async Task<AnalyseCV> EnsureTextExtractedAsync(Guid candidatureId)
         {
             var candidature = await _dbContext.Candidatures
@@ -62,8 +54,7 @@ namespace Recrutement_api.Services.AI
                 && candidature.AnalyseCV.TexteExtrait != "EMPTY_PDF")
                 return candidature.AnalyseCV;
 
-            // Verrou par candidature : une seule extraction à la fois
-            // Évite DbUpdateConcurrencyException quand plusieurs boutons sont cliqués en parallèle
+           
             var semaphore = _extractionLocks.GetOrAdd(candidatureId, _ => new SemaphoreSlim(1, 1));
             await semaphore.WaitAsync();
             try
@@ -138,22 +129,14 @@ namespace Recrutement_api.Services.AI
             return JsonSerializer.Deserialize<T>(json, options);
         }
 
-        // ── Score + changement de statut automatique ─────────────────
-        // Score < 30   → "Refusée"
-        // Score 30–80  → reste "Nouvelle" (pending)
-        // Score > 80   → "En cours" (In Review)
         // ── Score (TICKET-026) ─────────────────────────────────────────────────
         public async Task<object> CalculateScoreAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
 
-            // Charger la candidature avec Offre ET Candidat pour la notification
-            var candidature = await _dbContext.Candidatures
+            var offre = (await _dbContext.Candidatures
                 .Include(c => c.Offre)
-                .Include(c => c.Candidat)
-                .FirstOrDefaultAsync(c => c.Id == candidatureId);
-
-            var offre = candidature?.Offre;
+                .FirstOrDefaultAsync(c => c.Id == candidatureId))?.Offre;
 
             var payload  = new { texteExtrait = analyse.TexteExtrait, titreOffre = offre?.Titre, description = offre?.Description, typeContrat = offre?.TypeContrat.ToString() };
             var aiResult = await PostToAiAsync<AiScoreResponse>("score", payload);
@@ -161,58 +144,15 @@ namespace Recrutement_api.Services.AI
             // Arrondi à l'entier pour éviter les micro-variations
             analyse.Score = (float)Math.Round(aiResult?.Score ?? 0);
             _dbContext.AnalysesCV.Update(analyse);
-
-            // 2 — ★ Déterminer le nouveau statut selon le score
-            string? nouveauStatut = aiResult.Score switch
-            {
-                < 30  => "Refusée",
-                > 80  => "En cours",
-                _     => null   // 30–80 : on ne change pas le statut
-            };
-
-            // 3 — Appliquer le statut si nécessaire et notifier
-            if (nouveauStatut != null && candidature != null)
-            {
-                var ancienStatut = candidature.Statut;
-
-                if (ancienStatut != nouveauStatut)
-                {
-                    candidature.Statut = nouveauStatut;
-
-                    // ★ Notifier le candidat (même pattern que ChangerStatutAsync)
-                    if (candidature.Candidat != null)
-                    {
-                        await _notificationService.NotifyStatutChangeAsync(
-                            candidatId:    candidature.Candidat.Id,
-                            candidatureId: candidature.Id,
-                            offreTitre:    offre?.Titre ?? "Unknown Position",
-                            nouveauStatut: nouveauStatut,
-                            offreId:       offre?.Id
-                        );
-                    }
-
-                    _logger.LogInformation(
-                        $"[AI Score] Candidature {candidatureId} → score={aiResult.Score} → statut={nouveauStatut}");
-                }
-            }
-
             await _dbContext.SaveChangesAsync();
 
             return new
             {
-                score        = analyse.Score,
-                domainFit   = aiResult?.DomainFit,
-                technical   = aiResult?.Technical,
-                experience  = aiResult?.Experience,
-                statutAuto   = nouveauStatut ?? "unchanged",
-                message      = nouveauStatut switch
-                {
-                    "Refusée"  => "Score too low — application automatically rejected.",
-                    "En cours" => "Excellent score — application moved to In Review.",
-                    _          => "Score saved — application remains pending."
-                }};
-            // Sous-scores : renvoyés au client uniquement (non persistés — pas de champs sur AnalyseCV).
-           
+                score      = analyse.Score,
+                domainFit  = aiResult?.DomainFit,
+                technical  = aiResult?.Technical,
+                experience = aiResult?.Experience,
+            };
         }
 
         // ── Score en lecture seule (retourne le score sauvegardé sans recalculer) ──
@@ -363,7 +303,47 @@ namespace Recrutement_api.Services.AI
             return new { certifications };
         }
 
-                // ── DTOs ───────────────────────────────────────────────────────────────
+        // ── Génération de Quiz ────────────────────────────────────────────────
+        public async Task<object> GenerateQuizAsync(Guid offreId, int numQuestions = 10, int timePerQuestion = 60)
+        {
+            var offre = await _dbContext.OffresEmploi.FindAsync(offreId);
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            var payload = new
+            {
+                titreOffre        = offre.Titre,
+                description       = offre.Description,
+                num_questions     = Math.Max(3, Math.Min(numQuestions, 20)),
+                time_per_question = Math.Max(15, Math.Min(timePerQuestion, 300))
+            };
+
+            var aiResult = await PostToAiAsync<AiQuizResponse>("generate-quiz", payload);
+            return aiResult ?? new AiQuizResponse();
+        }
+
+        // ── DTOs ───────────────────────────────────────────────────────────────
+        private class AiQuizQuestion
+        {
+            [JsonPropertyName("id")]
+            public int Id { get; set; }
+
+            [JsonPropertyName("question")]
+            public string Question { get; set; } = "";
+
+            [JsonPropertyName("choices")]
+            public string[] Choices { get; set; } = Array.Empty<string>();
+
+            [JsonPropertyName("correct_index")]
+            public int CorrectIndex { get; set; }
+        }
+
+        private class AiQuizResponse
+        {
+            [JsonPropertyName("questions")]
+            public AiQuizQuestion[] Questions { get; set; } = Array.Empty<AiQuizQuestion>();
+        }
+
         private class AiScoreResponse
         {
             public float Score { get; set; }

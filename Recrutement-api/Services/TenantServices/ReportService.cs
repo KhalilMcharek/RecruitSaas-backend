@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-
+using System.Text.Json;
 
 using Recrutement_api.Data;
 using DocumentFormat.OpenXml;
@@ -25,7 +25,6 @@ namespace Recrutement_api.Services.TenantServices
             _context = context;
             _currentUser = currentUser;
 
-            // QuestPDF Community licence (free for open-source / academic)
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
@@ -120,6 +119,35 @@ namespace Recrutement_api.Services.TenantServices
                 .FirstOrDefaultAsync()
                 ?? throw new KeyNotFoundException("Candidature not found or access denied.");
 
+            // --- JSON Deserialization Logic ---
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            // 1. Parse Summary (Object)
+            string finalResume = "No AI summary available.";
+            try
+            {
+                var summaryObj = JsonSerializer.Deserialize<SummaryData>(c.AnalyseCV?.Resume ?? "{}", options);
+                finalResume = summaryObj?.Summary ?? "No AI summary available.";
+            }
+            catch { finalResume = c.AnalyseCV?.Resume; }
+
+            // 2. Parse Skills (List of strings)
+            var skillsList = new List<string>();
+            try
+            {
+                skillsList = JsonSerializer.Deserialize<List<string>>(c.AnalyseCV?.Competences ?? "[]", options) ?? new List<string>();
+            }
+            catch { /* Fallback or handle error */ }
+
+            // 3. Parse Experience (List of objects)
+            var experienceList = new List<ExperienceData>();
+            try
+            {
+                experienceList = JsonSerializer.Deserialize<List<ExperienceData>>(c.AnalyseCV?.Experience ?? "[]", options) ?? new List<ExperienceData>();
+            }
+            catch { /* Fallback */ }
+
+            // --- PDF Generation ---
             var nom = c.Candidat?.Utilisateur?.Nom ?? "Candidate";
             var email = c.Candidat?.Utilisateur?.Email ?? "—";
             var offre = c.Offre?.Titre ?? "—";
@@ -128,9 +156,6 @@ namespace Recrutement_api.Services.TenantServices
             var date = c.CreeLe.ToString("dd MMM yyyy");
             var score = c.AnalyseCV?.Score != null ? $"{Math.Round((double)c.AnalyseCV.Score)}%" : "N/A";
             var classif = c.AnalyseCV?.Classification ?? "—";
-            var resume = c.AnalyseCV?.Resume ?? "No AI summary available.";
-            var competences = c.AnalyseCV?.Competences ?? "";
-            var experience = c.AnalyseCV?.Experience ?? "";
 
             var document = QuestDocument.Create(container => {
                 container.Page(page =>
@@ -141,48 +166,22 @@ namespace Recrutement_api.Services.TenantServices
 
                     page.Content().Column(col =>
                     {
-                        // ── Header banner ──
-                        col.Item().Background("#454a83").Padding(20).Row(row =>
-                        {
-                            row.RelativeItem().Column(inner =>
-                            {
+                        // Header (Same as yours)
+                        col.Item().Background("#454a83").Padding(20).Row(row => {
+                            row.RelativeItem().Column(inner => {
                                 inner.Item().Text(nom).FontSize(20).Bold().FontColor("#FFFFFF");
                                 inner.Item().Text(email).FontSize(10).FontColor("#CBD5E1");
                             });
-
-                            row.ConstantItem(120).AlignRight().Column(inner =>
-                            {
-                                inner.Item().Text("Candidate Report").FontSize(11).FontColor("#94A3B8");
-                                inner.Item().Text(date).FontSize(10).FontColor("#94A3B8");
-                            });
+                            row.ConstantItem(120).AlignRight().Text(date).FontColor("#94A3B8");
                         });
 
                         col.Item().Height(16);
 
-                        // ── Info grid ──
-                        col.Item().Background("#F5F7FA").Padding(14).Grid(grid =>
-                        {
+                        // Info Grid (Same as yours)
+                        col.Item().Background("#F5F7FA").Padding(14).Grid(grid => {
                             grid.Columns(2);
-                            grid.Item().Column(inner =>
-                            {
-                                inner.Item().Text("Job Offer").FontSize(9).FontColor("#94A3B8").Bold();
-                                inner.Item().Text(offre).FontSize(11).Bold();
-                            });
-                            grid.Item().Column(inner =>
-                            {
-                                inner.Item().Text("Company").FontSize(9).FontColor("#94A3B8").Bold();
-                                inner.Item().Text(entreprise).FontSize(11).Bold();
-                            });
-                            grid.Item().PaddingTop(8).Column(inner =>
-                            {
-                                inner.Item().Text("Status").FontSize(9).FontColor("#94A3B8").Bold();
-                                inner.Item().Text(statut).FontSize(11).Bold();
-                            });
-                            grid.Item().PaddingTop(8).Column(inner =>
-                            {
-                                inner.Item().Text("AI Score").FontSize(9).FontColor("#94A3B8").Bold();
-                                inner.Item().Text($"{score}  ({classif})").FontSize(11).Bold();
-                            });
+                            grid.Item().Text($"Job: {offre}").Bold();
+                            grid.Item().Text($"Score: {score} ({classif})").Bold();
                         });
 
                         col.Item().Height(16);
@@ -191,38 +190,56 @@ namespace Recrutement_api.Services.TenantServices
                         col.Item().Text("AI Summary").FontSize(11).Bold().FontColor("#0F172A");
                         col.Item().Height(6);
                         col.Item().Background("#F8FAFC").BorderLeft(3).BorderColor("#1D9E75").Padding(12)
-                            .Text(resume).FontSize(10).LineHeight(1.6f);
+                            .Text(finalResume).FontSize(10).LineHeight(1.6f);
 
                         col.Item().Height(16);
 
-                        // ── Skills ──
-                        if (!string.IsNullOrWhiteSpace(competences))
+                        // ── Key Skills (Rendered as Comma Separated or Tags) ──
+                        if (skillsList.Any())
                         {
                             col.Item().Text("Key Skills").FontSize(11).Bold().FontColor("#0F172A");
                             col.Item().Height(6);
-                            col.Item().Text(competences).FontSize(10).LineHeight(1.5f);
+                            col.Item().Text(string.Join(" • ", skillsList)).FontSize(10).Italic();
                             col.Item().Height(14);
                         }
 
-                        // ── Experience ──
-                        if (!string.IsNullOrWhiteSpace(experience))
+                        // ── Experience (Rendered as a List) ──
+                        if (experienceList.Any())
                         {
-                            col.Item().Text("Experience").FontSize(11).Bold().FontColor("#0F172A");
-                            col.Item().Height(6);
-                            col.Item().Text(experience).FontSize(10).LineHeight(1.5f);
+                            col.Item().Text("Professional Experience").FontSize(11).Bold().FontColor("#0F172A");
+                            col.Item().Height(8);
+
+                            foreach (var exp in experienceList)
+                            {
+                                col.Item().PaddingBottom(10).Column(expCol =>
+                                {
+                                    expCol.Item().Row(r => {
+                                        r.RelativeItem().Text(exp.Role).Bold();
+                                        r.ConstantItem(100).AlignRight().Text(exp.Years).FontSize(9).Italic();
+                                    });
+                                    expCol.Item().PaddingLeft(10).Text(exp.Summary).FontSize(9).FontColor("#475569");
+                                });
+                            }
                         }
                     });
 
-                    page.Footer().AlignCenter()
-                        .Text(t =>
-                        {
-                            t.Span("Generated by RecruitSaaS  •  ").FontSize(8).FontColor("#94A3B8");
-                            t.Span(DateTime.UtcNow.ToString("dd MMM yyyy HH:mm")).FontSize(8).FontColor("#94A3B8");
-                        });
+                    page.Footer().AlignCenter().Text(t => {
+                        t.Span("Generated by RecruitSaaS • ").FontSize(8);
+                        t.Span(DateTime.UtcNow.ToString("g")).FontSize(8);
+                    });
                 });
             });
 
             return document.GeneratePdf();
+        }
+
+        // Helper classes for Deserialization
+        public class SummaryData { public string Summary { get; set; } }
+        public class ExperienceData
+        {
+            public string Role { get; set; }
+            public string Years { get; set; }
+            public string Summary { get; set; }
         }
 
         // ─────────────────────────────────────────────────────────────

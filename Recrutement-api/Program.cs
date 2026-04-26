@@ -14,14 +14,11 @@ using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.Services.AI;
-using Serilog;
-using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Email config
 builder.Configuration["EmailSettings:SmtpHost"] = "smtp-relay.brevo.com";
-
 builder.Configuration["EmailSettings:SmtpPort"] = "587";
 builder.Configuration["EmailSettings:SmtpUseSsl"] = "false";
 builder.Configuration["EmailSettings:SmtpUsername"] = "a89322001@smtp-brevo.com";
@@ -29,20 +26,6 @@ builder.Configuration["EmailSettings:SmtpPassword"] = "xsmtpsib-f51c962ba5c5c8f5
 builder.Configuration["EmailSettings:FromEmail"] = "oumaymametoui3@gmail.com";
 builder.Configuration["EmailSettings:FromName"] = "RecruitSaaS";
 builder.Configuration["EmailSettings:FrontendBaseUrl"] = "http://localhost:5173";
-
-// Serilog
-Directory.CreateDirectory("logs");
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] [Tenant:{TenantId}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
-    .WriteTo.File("logs/errors-.txt", rollingInterval: RollingInterval.Day,
-        restrictedToMinimumLevel: LogEventLevel.Error)
-    .CreateLogger();
-
-builder.Host.UseSerilog();
 
 // Services
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -56,19 +39,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddHttpClient(); // ✅ une seule fois
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.PdfTextExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.Extractors.DocxTextExtractor>();
-builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.OcrExtractor>();
 builder.Services.AddScoped<Recrutement_api.Services.CvExtraction.ICvExtractionService, Recrutement_api.Services.CvExtraction.CvExtractionService>();
-// =============================
-// SERVICES
-// =============================
-
-// Controllers + JSON
-// 🔧 Remplacez votre bloc AddCors par celui-ci :
-
-builder.Services.AddSingleton<Recrutement_api.Services.CvExtraction.Extractors.TesseractTextExtractor>();
-builder.Services.AddScoped<
-    Recrutement_api.Services.CvExtraction.ICvExtractionService,
-    Recrutement_api.Services.CvExtraction.CvExtractionService>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -154,13 +125,8 @@ builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
 builder.Services.AddScoped<ISavedJobService, SavedJobService>();
 builder.Services.AddScoped<NotificationService>();
 
-builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, 
-                            Recrutement_api.Services.Entretien.EntretienService>();
-
-// Nouveaux services
-builder.Services.AddScoped<
-    Recrutement_api.Services.Entretien.IEntretienService,
-    Recrutement_api.Services.Entretien.EntretienService>();
+builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService, Recrutement_api.Services.Entretien.EntretienService>();
+builder.Services.AddScoped<Recrutement_api.Services.Quiz.IQuizService, Recrutement_api.Services.Quiz.QuizService>();
 
 builder.Services.AddScoped<Recrutement_api.Services.TenantServices.ReportService>();
 

@@ -11,6 +11,7 @@ namespace Recrutement_api.Services.AI
         Task<object> ExtractCompetencesAsync(Guid candidatureId);
         Task<object> ExtractExperienceAsync(Guid candidatureId);
         Task<object> ExtractCompaniesAsync(Guid candidatureId);
-        Task<object> ExtractCertificationsAsync(Guid candidatureId); 
+        Task<object> ExtractCertificationsAsync(Guid candidatureId);
+        Task<object> GenerateQuizAsync(Guid offreId, int numQuestions = 10, int timePerQuestion = 60);
     }
 }
