@@ -53,6 +53,7 @@ namespace Recrutement_api.Models
         public string ChoiceB { get; set; } = "";
         public string ChoiceC { get; set; } = "";
         public int CorrectIndex { get; set; }
+        public string? Explanation { get; set; }
         public int TimeLimit { get; set; } = 60;
     }
 }
