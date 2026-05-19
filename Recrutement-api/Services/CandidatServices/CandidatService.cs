@@ -21,10 +21,18 @@ namespace Recrutement_api.Services.CandidatServices
         private readonly Cloudinary _cloudinary;
         private readonly ILogger<CandidatService> _logger;
 
-        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> AllowedCvExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            "jpg", "jpeg", "png", "gif", "webp", "bmp",
-            "tiff", "tif", "svg", "ico", "avif", "heic", "heif"
+            "pdf", "doc", "docx"
+        };
+
+        private static readonly HashSet<string> AllowedCvContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            // Some clients/browsers may fallback to generic binary content type
+            "application/octet-stream"
         };
 
         public CandidatService(
@@ -86,6 +94,7 @@ namespace Recrutement_api.Services.CandidatServices
 
             if (dto.Cv == null || dto.Cv.Length == 0)
                 throw new Exception("Le CV est obligatoire.");
+            ValidateCvFile(dto.Cv);
 
             var offre = await _context.OffresEmploi
                 .FirstOrDefaultAsync(o => o.Id == dto.OffreId && o.EstPublie)
@@ -97,7 +106,45 @@ namespace Recrutement_api.Services.CandidatServices
             if (dejaPostule)
                 throw new AlreadyAppliedException();
 
-            string cvUrl = await UploadToCloudinaryAsync(dto.Cv);
+            string cvUrl = await UploadToCloudinaryAsync(dto.Cv, "cv_");
+
+            // Build Formulaire Responses
+            var responsesDict = new Dictionary<string, object>();
+            if (!string.IsNullOrWhiteSpace(dto.ChampsPersonnalises))
+            {
+                try
+                {
+                    var extra = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(dto.ChampsPersonnalises);
+                    if (extra != null)
+                        foreach (var kv in extra)
+                            responsesDict[kv.Key] = kv.Value;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("JSON champsPersonnalises invalide : {Message}", ex.Message);
+                }
+            }
+
+            // Upload CustomFiles to Cloudinary and add to responsesDict
+            if (dto.CustomFiles != null && dto.CustomFileQuestions != null)
+            {
+                for (int i = 0; i < dto.CustomFiles.Count; i++)
+                {
+                    // Match file with its question based on list index
+                    if (i < dto.CustomFileQuestions.Count)
+                    {
+                        var question = dto.CustomFileQuestions[i];
+                        var fileUrl = await UploadToCloudinaryAsync(dto.CustomFiles[i], "custom_");
+                        responsesDict[question] = fileUrl;
+                    }
+                }
+            }
+
+            var formulaireResponsesJson = System.Text.Json.JsonSerializer.Serialize(responsesDict);
+
+            // Check current application count for auto-closure
+            var currentApplicationsCount = await _context.Candidatures
+                .CountAsync(c => c.OffreId == dto.OffreId);
 
             var candidature = new Candidature
             {
@@ -107,10 +154,23 @@ namespace Recrutement_api.Services.CandidatServices
                 CvUrl               = cvUrl,
                 Statut              = "Nouvelle",
                 CreeLe              = DateTime.UtcNow,
-                FormulaireResponses = BuildFormulaireResponsesJson(dto)
+                FormulaireResponses = formulaireResponsesJson
             };
 
             _context.Candidatures.Add(candidature);
+
+            // Check if this application triggers auto-closure
+            var jobOffer = await _context.OffresEmploi
+                .FirstOrDefaultAsync(o => o.Id == dto.OffreId);
+            
+            if (jobOffer != null && jobOffer.MaxApplications.HasValue && 
+                currentApplicationsCount + 1 >= jobOffer.MaxApplications.Value)
+            {
+                // Auto-close the offer
+                jobOffer.IsClosed = true;
+                jobOffer.ClosedAt = DateTime.UtcNow;
+            }
+
             await _context.SaveChangesAsync();
 
             return new PostulerResultDto
@@ -124,42 +184,40 @@ namespace Recrutement_api.Services.CandidatServices
         // ─────────────────────────────────────────────────────────────
         // Upload Cloudinary
         // ─────────────────────────────────────────────────────────────
-        private async Task<string> UploadToCloudinaryAsync(IFormFile file)
+        private async Task<string> UploadToCloudinaryAsync(IFormFile file, string prefix = "cv_")
         {
             var ext      = Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant();
-            var publicId = "cv_" + Guid.NewGuid().ToString("N");
+            var publicId = prefix + Guid.NewGuid().ToString("N");
 
             using var stream = file.OpenReadStream();
 
-            if (ImageExtensions.Contains(ext))
+            var result = await _cloudinary.UploadAsync(new RawUploadParams
             {
-                var result = await _cloudinary.UploadAsync(new ImageUploadParams
-                {
-                    File       = new FileDescription(file.FileName, stream),
-                    PublicId   = publicId,
-                    AccessMode = "public",
-                    Type       = "upload"
-                });
+                File = new FileDescription(file.FileName, stream),
+                PublicId = publicId,
+                AccessMode = "public",
+                Type = "upload"
+            });
 
-                if (result.Error != null)
-                    throw new Exception($"Cloudinary image upload error: {result.Error.Message}");
+            if (result.Error != null)
+                throw new Exception($"Cloudinary raw upload error: {result.Error.Message}");
 
-                return result.SecureUrl.ToString();
+            return result.SecureUrl.ToString();
+        }
+
+        private static void ValidateCvFile(IFormFile file)
+        {
+            var ext = Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant();
+
+            if (!AllowedCvExtensions.Contains(ext))
+            {
+                throw new Exception("Format de CV invalide. Seuls PDF, DOC et DOCX sont autorisés.");
             }
-            else
+
+            var contentType = file.ContentType?.Trim();
+            if (!string.IsNullOrWhiteSpace(contentType) && !AllowedCvContentTypes.Contains(contentType))
             {
-                var result = await _cloudinary.UploadAsync(new RawUploadParams
-                {
-                    File       = new FileDescription(file.FileName, stream),
-                    PublicId   = publicId,
-                    AccessMode = "public",
-                    Type       = "upload"
-                });
-
-                if (result.Error != null)
-                    throw new Exception($"Cloudinary raw upload error: {result.Error.Message}");
-
-                return result.SecureUrl.ToString();
+                throw new Exception("Type MIME de CV invalide. Seuls PDF, DOC et DOCX sont autorisés.");
             }
         }
 
@@ -228,39 +286,7 @@ namespace Recrutement_api.Services.CandidatServices
                 .FirstOrDefaultAsync();
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // Helper : build formulaire JSON
-        // ─────────────────────────────────────────────────────────────
-        private string BuildFormulaireResponsesJson(PostulerDto dto)
-        {
-            var responses = new Dictionary<string, object>();
 
-            if (!string.IsNullOrEmpty(dto.FullName))     responses["fullName"]     = dto.FullName;
-            if (!string.IsNullOrEmpty(dto.Email))        responses["email"]        = dto.Email;
-            if (!string.IsNullOrEmpty(dto.PortfolioUrl)) responses["portfolioUrl"] = dto.PortfolioUrl;
-            if (!string.IsNullOrEmpty(dto.Motivation))   responses["motivation"]   = dto.Motivation;
-
-            if (!string.IsNullOrWhiteSpace(dto.ChampsPersonnalises))
-            {
-                try
-                {
-                    var extra = System.Text.Json.JsonSerializer
-                        .Deserialize<Dictionary<string, object>>(dto.ChampsPersonnalises);
-
-                    if (extra != null)
-                        foreach (var kv in extra)
-                            responses[kv.Key] = kv.Value;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("JSON champsPersonnalises invalide : {Message}", ex.Message);
-                }
-            }
-
-            return responses.Count > 0
-                ? System.Text.Json.JsonSerializer.Serialize(responses)
-                : "{}";
-        }
 
         // ─────────────────────────────────────────────────────────────
         // HasAlreadyAppliedAsync

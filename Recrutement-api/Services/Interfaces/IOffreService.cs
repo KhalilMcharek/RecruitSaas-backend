@@ -15,7 +15,8 @@ namespace Recrutement_api.Services.Interfaces
         Task<PublicOffreResponseDto> GetPublicOffreByTokenAsync(string token);
         Task<OffreResponseDto> AssignerExpertsAsync(Guid offreId, AssignationExpertDto dto);
         Task<object> RechercherExpertsAsync(Guid offreId, string? search);
-        Task <OffreResponseDto> ModifierOffreAsync(Guid offreId, OffreUpdateDto dto);
+        Task<OffreResponseDto> ModifierOffreAsync(Guid offreId, OffreUpdateDto dto);
+        Task<OffreResponseDto> CloseOffreAsync(Guid offreId);
         Task SupprimerAssignationExpertAsync(Guid offreId, Guid expertId);
         Task SupprimerOffreAsync(Guid offreId);
         Task<FormulaireResponseDto> InitialiserFormulaireAsync(Guid offreId);

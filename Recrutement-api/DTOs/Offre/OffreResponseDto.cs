@@ -24,6 +24,12 @@ namespace Recrutement_api.DTOs.Offre
 
         public DateTime CreeLe { get; set; }
 
+        // Job Offer Closure Lifecycle fields
+        public bool IsClosed { get; set; }
+        public DateTime? ClosedAt { get; set; }
+        public DateTime? Deadline { get; set; }
+        public int? MaxApplications { get; set; }
+
         // Infos minimales entreprise
         public Guid EntrepriseId { get; set; }
         public string NomEntreprise { get; set; }

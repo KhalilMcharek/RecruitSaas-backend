@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Recrutement_api.DTOs;
 using Recrutement_api.Services.AI;
 using Recrutement_api.Services.Quiz;
@@ -57,12 +58,53 @@ namespace Recrutement_api.Controllers
         }
 
         [AllowAnonymous]
+        [HttpPost("start/{quizToken}")]
+        public async Task<IActionResult> StartQuiz(string quizToken)
+        {
+            try
+            {
+                var fingerprint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var result = await _quizService.StartQuizAsync(quizToken, fingerprint);
+                return Ok(result);
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("save-progress")]
+        public async Task<IActionResult> SaveProgress([FromBody] SaveProgressDto dto)
+        {
+            try
+            {
+                var fingerprint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var result = await _quizService.SaveProgressAsync(dto, fingerprint);
+                return Ok(result);
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [AllowAnonymous]
         [HttpPost("submit-result")]
         public async Task<IActionResult> SubmitResult([FromBody] SubmitQuizResultDto dto)
         {
             try
             {
-                var result = await _quizService.SubmitResultAsync(dto);
+                var fingerprint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var result = await _quizService.SubmitResultAsync(dto, fingerprint);
                 return Ok(result);
             }
             catch (System.Collections.Generic.KeyNotFoundException ex)
@@ -105,23 +147,11 @@ namespace Recrutement_api.Controllers
             return Ok(result);
         }
 
-        [AllowAnonymous]
-        [HttpPost("confirm-complete")]
-        public async Task<IActionResult> ConfirmQuizCompletion([FromBody] ConfirmCompletionDto dto)
-        {
-            try
-            {
-                var result = await _quizService.ConfirmQuizCompletionAsync(dto);
-                return Ok(result);
-            }
-            catch (System.Collections.Generic.KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-        }
+        // Removed ConfirmQuizCompletion endpoint
 
         // ⭐ NOUVEAU: Génération par l'IA basée sur l'offre
         [HttpPost("generate/{offreId}")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> GenerateQuizForOffer(
             Guid offreId,
             [FromQuery] int numQuestions = 10,

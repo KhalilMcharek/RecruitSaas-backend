@@ -127,6 +127,20 @@ namespace Recrutement_api.Controllers
             await _offreService.SupprimerOffreAsync(offreId);
             return NoContent();
         }
+
+        [HttpPut("{offreId}/close")]
+        public async Task<IActionResult> CloseOffre(Guid offreId)
+        {
+            try
+            {
+                var result = await _offreService.CloseOffreAsync(offreId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
         [HttpPost("{offreId}/formulaire")]
         public async Task<IActionResult> InitialiserFormulaire(Guid offreId)
         {

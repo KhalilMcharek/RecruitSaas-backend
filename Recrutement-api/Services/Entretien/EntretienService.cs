@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Recrutement_api.DTOs.Entretien;
 using Recrutement_api.Data;
 using Recrutement_api.Models;
@@ -44,7 +44,7 @@ namespace Recrutement_api.Services.Entretien
                 {
                     Id             = Guid.NewGuid(),
                     CandidatureId  = candidatureId,
-                    Statut         = "LienEnvoye",
+                    Statut         = "Pending Confirmation",
                     CreeLe         = DateTime.UtcNow
                 };
                 _db.EntretiensIA.Add(entretien);
@@ -55,7 +55,9 @@ namespace Recrutement_api.Services.Entretien
                                               .Replace("+", "-").Replace("/", "_").Replace("=", "");
             entretien.CreneauxDisponibles = JsonSerializer.Serialize(
                 dto.Creneaux.Select(d => d.ToUniversalTime()).ToList());
-            entretien.Statut              = "LienEnvoye";
+            entretien.Statut              = "Pending Confirmation";
+            entretien.QuestionsJson       = dto.QuestionsJson;
+            entretien.Langue              = dto.Langue ?? "FR";
             entretien.MisAJourLe          = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
@@ -137,6 +139,50 @@ namespace Recrutement_api.Services.Entretien
             }).ToList();
         }
 
+        // ── Détail entretien par CandidatureId ────────────────────────────────────
+        public async Task<object?> GetByCandidatureIdAsync(Guid candidatureId)
+        {
+            var e = await _db.EntretiensIA
+                .Include(x => x.Candidature)
+                    .ThenInclude(c => c.Candidat).ThenInclude(ca => ca.Utilisateur)
+                .Include(x => x.Candidature)
+                    .ThenInclude(c => c.Offre)
+                .FirstOrDefaultAsync(x => x.CandidatureId == candidatureId);
+
+            if (e == null) return null;
+
+            List<DateTime> creneaux = new();
+            if (!string.IsNullOrEmpty(e.CreneauxDisponibles))
+            {
+                try { creneaux = JsonSerializer.Deserialize<List<DateTime>>(e.CreneauxDisponibles) ?? new(); }
+                catch { }
+            }
+
+            List<string> strengths = new();
+            List<string> weaknesses = new();
+            if (!string.IsNullOrEmpty(e.Strengths)) { try { strengths = JsonSerializer.Deserialize<List<string>>(e.Strengths) ?? new(); } catch { } }
+            if (!string.IsNullOrEmpty(e.Weaknesses)) { try { weaknesses = JsonSerializer.Deserialize<List<string>>(e.Weaknesses) ?? new(); } catch { } }
+
+            return new
+            {
+                e.Id,
+                e.Statut,
+                e.DateScheduled,
+                e.LienActif,
+                e.Score,
+                e.Summary,
+                Strengths = strengths,
+                Weaknesses = weaknesses,
+                e.Transcript,
+                e.CreeLe,
+                CreneauxDisponibles = creneaux,
+                NomCandidat    = e.Candidature.Candidat.Utilisateur.Nom,
+                EmailCandidat  = e.Candidature.Candidat.Utilisateur.Email,
+                TitreOffre     = e.Candidature.Offre.Titre,
+                CandidatureId  = e.CandidatureId
+            };
+        }
+
         // ── Détail entretien ──────────────────────────────────────────────────────
         public async Task<object?> GetByIdAsync(Guid id)
         {
@@ -156,6 +202,11 @@ namespace Recrutement_api.Services.Entretien
                 catch { }
             }
 
+            List<string> strengths = new();
+            List<string> weaknesses = new();
+            if (!string.IsNullOrEmpty(e.Strengths)) { try { strengths = JsonSerializer.Deserialize<List<string>>(e.Strengths) ?? new(); } catch { } }
+            if (!string.IsNullOrEmpty(e.Weaknesses)) { try { weaknesses = JsonSerializer.Deserialize<List<string>>(e.Weaknesses) ?? new(); } catch { } }
+
             return new
             {
                 e.Id,
@@ -163,6 +214,9 @@ namespace Recrutement_api.Services.Entretien
                 e.DateScheduled,
                 e.LienActif,
                 e.Score,
+                e.Summary,
+                Strengths = strengths,
+                Weaknesses = weaknesses,
                 e.Transcript,
                 e.CreeLe,
                 CreneauxDisponibles = creneaux,
@@ -179,7 +233,7 @@ namespace Recrutement_api.Services.Entretien
             var entretien = await _db.EntretiensIA.FindAsync(id)
                 ?? throw new Exception("Entretien introuvable");
 
-            entretien.Statut     = "Annule";
+            entretien.Statut     = "Cancelled";
             entretien.MisAJourLe = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
@@ -192,7 +246,7 @@ namespace Recrutement_api.Services.Entretien
                     .ThenInclude(c => c.Offre)
                 .FirstOrDefaultAsync(e => e.LienToken == token);
 
-            if (entretien == null || entretien.Statut == "Annule") return null;
+            if (entretien == null || entretien.Statut == "Cancelled") return null;
 
             List<DateTime> creneaux = new();
             if (!string.IsNullOrEmpty(entretien.CreneauxDisponibles))
@@ -222,7 +276,7 @@ namespace Recrutement_api.Services.Entretien
                     .ThenInclude(c => c.Offre)
                 .FirstOrDefaultAsync(e => e.LienToken == token);
 
-            if (entretien == null || entretien.Statut == "Annule") return null;
+            if (entretien == null || entretien.Statut == "Cancelled") return null;
 
             // Vérifie que le créneau choisi est dans les créneaux disponibles
             List<DateTime> creneaux = new();
@@ -233,11 +287,18 @@ namespace Recrutement_api.Services.Entretien
             }
 
             var dateUTC = dateChoisie.ToUniversalTime();
+            
+            // Vérifie la capacité (max 2)
+            var count = await _db.EntretiensIA
+                .CountAsync(e => e.DateScheduled == dateUTC && e.Statut != "Cancelled" && e.Statut != "Abandoned");
+            
+            if (count >= 2) throw new Exception("Ce créneau est complet (max 2 entretiens).");
+
             bool valide = creneaux.Any(c => Math.Abs((c - dateUTC).TotalMinutes) < 1);
             if (!valide) return null;
 
             entretien.DateScheduled = dateUTC;
-            entretien.Statut        = "Planifie";
+            entretien.Statut        = "Confirmed";
             entretien.MisAJourLe    = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
@@ -292,6 +353,16 @@ namespace Recrutement_api.Services.Entretien
             }).ToList();
         }
 
+        // ── Sauvegarder le transcript (réponses du candidat en temps réel) ──────
+        public async Task SaveTranscriptAsync(Guid id, string transcript)
+        {
+            var entretien = await _db.EntretiensIA.FindAsync(id)
+                ?? throw new Exception("Entretien introuvable");
+            entretien.Transcript = transcript;
+            entretien.MisAJourLe = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
         // ── PUBLIC : rejoindre l'entretien (actif seulement à l'heure J) ─────────
         public async Task<EntretienRejoindreResult?> RejoindreAsync(string token)
         {
@@ -302,7 +373,7 @@ namespace Recrutement_api.Services.Entretien
                     .ThenInclude(c => c.Offre)
                 .FirstOrDefaultAsync(e => e.LienToken == token);
 
-            if (entretien == null || entretien.Statut == "Annule") return null;
+            if (entretien == null || entretien.Statut == "Cancelled") return null;
 
             // Le lien est actif 5 minutes avant et pendant l'entretien (30 min)
             var now = DateTime.UtcNow;
@@ -310,9 +381,9 @@ namespace Recrutement_api.Services.Entretien
                 && now >= entretien.DateScheduled.Value.AddMinutes(-5)
                 && now <= entretien.DateScheduled.Value.AddMinutes(35);
 
-            if (estActif && entretien.Statut == "Planifie")
+            if (estActif && entretien.Statut == "Confirmed")
             {
-                entretien.Statut    = "EnCours";
+                entretien.Statut    = "In Progress";
                 entretien.LienActif = true;
                 entretien.MisAJourLe = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
@@ -337,7 +408,10 @@ namespace Recrutement_api.Services.Entretien
                 LienEntretien   = estActif ? avatarUrl : null,
                 NomCandidat     = entretien.Candidature.Candidat.Utilisateur.Nom,
                 TitreOffre      = entretien.Candidature.Offre.Titre,
-                PhotoProfilUrl  = photoProfilUrl
+                EntretienId     = entretien.Id,
+                Langue          = entretien.Langue ?? "FR",
+                PhotoProfilUrl  = photoProfilUrl,
+                QuestionsJson   = entretien.QuestionsJson
             };
         }
 
@@ -353,6 +427,156 @@ namespace Recrutement_api.Services.Entretien
             var origin = _config["AppSettings:PublicOrigin"]?.TrimEnd('/')
                          ?? "http://localhost:5202";
             return raw.StartsWith('/') ? $"{origin}{raw}" : $"{origin}/{raw}";
+        }
+
+        public async Task<Dictionary<DateTime, int>> GetSlotUsageAsync(DateTime start, DateTime end)
+        {
+            var usage = await _db.EntretiensIA
+                .Where(e => e.DateScheduled != null 
+                            && e.DateScheduled >= start 
+                            && e.DateScheduled <= end
+                            && e.Statut != "Cancelled" 
+                            && e.Statut != "Abandoned")
+                .GroupBy(e => e.DateScheduled!.Value)
+                .Select(g => new { Slot = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Slot, x => x.Count);
+
+            // Ensure keys are treated as UTC for JSON serialization (adding 'Z')
+            return usage.ToDictionary(
+                k => DateTime.SpecifyKind(k.Key, DateTimeKind.Utc),
+                v => v.Value
+            );
+        }
+
+        // ── SESSION CONTROL ──────────────────────────────────────────────────────
+        public async Task<object> GetSessionAsync(string token)
+        {
+            var entretien = await _db.EntretiensIA
+                .Include(e => e.Candidature)
+                    .ThenInclude(c => c.Offre)
+                .Include(e => e.Candidature)
+                    .ThenInclude(c => c.Candidat)
+                    .ThenInclude(ca => ca.Utilisateur)
+                .FirstOrDefaultAsync(e => e.LienToken == token);
+
+            if (entretien == null)
+                throw new Exception("Entretien introuvable ou lien invalide.");
+
+            var now = DateTime.UtcNow;
+
+            if (entretien.Statut == "Completed" || entretien.Statut == "Cancelled" || entretien.Statut == "Expired")
+            {
+                throw new Exception($"Session cannot be joined. Status: {entretien.Statut}");
+            }
+
+            // Check grace period if previously active
+            if (entretien.Statut == "In Progress" || entretien.Statut == "Abandoned")
+            {
+                if (entretien.LastActivityAt.HasValue && (now - entretien.LastActivityAt.Value).TotalMinutes > 5)
+                {
+                    entretien.Statut = "Abandoned";
+                    await _db.SaveChangesAsync();
+                    throw new Exception("Grace period expired. Session abandoned.");
+                }
+            }
+
+            // First time joining — we used to mark as In Progress here, 
+            // but now we wait for an explicit StartSession call from the Gate.
+            if (entretien.Statut == "Pending Confirmation")
+            {
+                // Just upgrade to Confirmed if it was pending, but don't start yet
+                entretien.Statut = "Confirmed";
+                await _db.SaveChangesAsync();
+            }
+
+            // Calculate remaining time
+            int remainingSeconds = entretien.DurationMinutes * 60;
+            if (entretien.StartedAt.HasValue)
+            {
+                remainingSeconds = Math.Max(0, entretien.DurationMinutes * 60 - (int)(now - entretien.StartedAt.Value).TotalSeconds);
+            }
+
+            // If time is up, mark as expired
+            if (remainingSeconds <= 0)
+            {
+                entretien.Statut = "Expired";
+                await _db.SaveChangesAsync();
+                throw new Exception("Session time expired.");
+            }
+
+            return new
+            {
+                id = entretien.Id,
+                status = entretien.Statut,
+                currentQuestionIndex = entretien.CurrentQuestionIndex,
+                transcript = entretien.Transcript,
+                questionsJson = entretien.QuestionsJson,
+                langue = entretien.Langue,
+                remainingTimeSeconds = remainingSeconds,
+                startedAt = entretien.StartedAt,
+                dateScheduled = entretien.DateScheduled,
+                durationMinutes = entretien.DurationMinutes,
+                titreOffre = entretien.Candidature?.Offre?.Titre
+            };
+        }
+
+        public async Task StartSessionAsync(string token)
+        {
+            var entretien = await _db.EntretiensIA.FirstOrDefaultAsync(e => e.LienToken == token);
+            if (entretien == null) throw new Exception("Entretien introuvable.");
+
+            if (entretien.Statut == "Completed" || entretien.Statut == "Cancelled")
+                throw new Exception("Cannot start a finished or cancelled session.");
+
+            var now = DateTime.UtcNow;
+            
+            // Only set startedAt if not already set (to prevent resetting if they rejoin)
+            if (!entretien.StartedAt.HasValue)
+            {
+                entretien.StartedAt = now;
+            }
+            
+            entretien.Statut = "In Progress";
+            entretien.LastActivityAt = now;
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task PingSessionAsync(string token, int questionIndex, string transcript)
+        {
+            var entretien = await _db.EntretiensIA.FirstOrDefaultAsync(e => e.LienToken == token);
+            if (entretien == null) throw new Exception("Entretien introuvable.");
+
+            if (entretien.Statut != "In Progress") return;
+
+            // Only allow ping if within grace period
+            if (entretien.LastActivityAt.HasValue && (DateTime.UtcNow - entretien.LastActivityAt.Value).TotalMinutes > 5)
+            {
+                entretien.Statut = "Abandoned";
+                await _db.SaveChangesAsync();
+                throw new Exception("Session abandoned due to inactivity.");
+            }
+
+            entretien.CurrentQuestionIndex = questionIndex;
+            
+            // Only update transcript if not empty to prevent accidental clears
+            if (!string.IsNullOrEmpty(transcript))
+            {
+                 // Si c'est un ping régulier qui envoie tout le texte, on remplace
+                 entretien.Transcript = transcript;
+            }
+
+            entretien.LastActivityAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task CompleteSessionAsync(string token)
+        {
+            var entretien = await _db.EntretiensIA.FirstOrDefaultAsync(e => e.LienToken == token);
+            if (entretien == null) throw new Exception("Entretien introuvable.");
+
+            entretien.Statut = "Completed";
+            entretien.LastActivityAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
         }
     }
 }

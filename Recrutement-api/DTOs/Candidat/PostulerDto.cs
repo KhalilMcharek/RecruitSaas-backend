@@ -9,12 +9,10 @@ namespace Recrutement_api.DTOs.Candidat
     {
         public Guid OffreId { get; set; }
         public IFormFile Cv { get; set; } = null!;
-        public string? FullName { get; set; }
-        public string? Email { get; set; }
-        public string? PortfolioUrl { get; set; }
-        public string? Motivation { get; set; }
         /// <summary>JSON-encoded dictionary of custom form field responses.</summary>
         public string? ChampsPersonnalises { get; set; }
+        public List<IFormFile>? CustomFiles { get; set; }
+        public List<string>? CustomFileQuestions { get; set; }
     }
 
     /// <summary>

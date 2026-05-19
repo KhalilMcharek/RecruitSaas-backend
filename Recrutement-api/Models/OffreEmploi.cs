@@ -46,6 +46,12 @@ namespace Recrutement_api.Models
         public DateTime? PublicLinkExpiresAt { get; set; }
         public DateTime CreeLe { get; set; } = DateTime.UtcNow;
 
+        // 🔹 Job Offer Closure Lifecycle
+        public bool IsClosed { get; set; } = false;
+        public DateTime? ClosedAt { get; set; }
+        public DateTime? Deadline { get; set; }
+        public int? MaxApplications { get; set; }
+
         public FormulaireCandidature Formulaire { get; set; }
         public ICollection<Candidature> Candidatures { get; set; }
         public ICollection<AssignationExpert> Assignations { get; set; } = new List<AssignationExpert>();

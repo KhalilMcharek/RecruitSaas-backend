@@ -277,12 +277,21 @@ namespace Recrutement_api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool?>("EnableQuiz")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Flags")
+                        .HasColumnType("text");
+
                     b.Property<string>("FormulaireResponses")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("OffreId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Priority")
+                        .HasColumnType("text");
 
                     b.Property<string>("Statut")
                         .IsRequired()
@@ -386,7 +395,20 @@ namespace Recrutement_api.Migrations
                     b.Property<string>("CreneauxDisponibles")
                         .HasColumnType("text");
 
+                    b.Property<int>("CurrentQuestionIndex")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("DateScheduled")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Langue")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastActivityAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("LienActif")
@@ -401,15 +423,30 @@ namespace Recrutement_api.Migrations
                     b.Property<Guid?>("PlanifiePar")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("QuestionsJson")
+                        .HasColumnType("text");
+
                     b.Property<float?>("Score")
                         .HasColumnType("real");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Statut")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Strengths")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Summary")
+                        .HasColumnType("text");
+
                     b.Property<string>("Transcript")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weaknesses")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -557,7 +594,13 @@ namespace Recrutement_api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("Deadline")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
@@ -570,12 +613,18 @@ namespace Recrutement_api.Migrations
                     b.Property<bool>("EstPublie")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsPublicLinkEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Localisation")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("MaxApplications")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("PublicLinkExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -604,13 +653,26 @@ namespace Recrutement_api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("AvailableFrom")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("CandidatureId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ClientFingerprint")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentAnswersJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Deadline")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Instructions")
@@ -625,8 +687,19 @@ namespace Recrutement_api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<DateTime>("ScheduledDate")
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime?>("StartedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
 
                     b.Property<int>("TimePerQuestion")
                         .HasColumnType("integer");

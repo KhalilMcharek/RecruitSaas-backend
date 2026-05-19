@@ -2,10 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Recrutement_api.Controllers
 {
-    /// <summary>
-    /// Retourne l'URL HTTP du fichier GLB hébergé dans wwwroot/avatars/.
-    /// Le fichier GLB lui-même est servi automatiquement par UseStaticFiles().
-    /// </summary>
+   
     [ApiController]
     [Route("api/[controller]")]
     public class AvatarController : ControllerBase

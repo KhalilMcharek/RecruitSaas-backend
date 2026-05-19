@@ -20,8 +20,17 @@ namespace Recrutement_api.Models
         [Required, StringLength(100)]
         public string QuizToken { get; set; } = "";
         
+        /// <summary>DateTime from which the quiz becomes accessible to the candidate.</summary>
         [Required]
-        public DateTime ScheduledDate { get; set; }
+        public DateTime AvailableFrom { get; set; }
+
+        /// <summary>Last moment the candidate can start/submit the quiz.</summary>
+        [Required]
+        public DateTime Deadline { get; set; }
+
+        /// <summary>draft | active | closed</summary>
+        [Required, StringLength(10)]
+        public string Status { get; set; } = "active";
         
         [Required]
         public int TimePerQuestion { get; set; } = 60;
@@ -42,6 +51,16 @@ namespace Recrutement_api.Models
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         
+        public DateTime? StartedAt { get; set; }
+        
+        public string? ClientFingerprint { get; set; }
+        
+        [Column(TypeName = "text")]
+        public string CurrentAnswersJson { get; set; } = "[]";
+        
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         public DateTime? CompletedAt { get; set; }
     }
 

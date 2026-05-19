@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Recrutement_api.Data;
 using Recrutement_api.Models;
+using Recrutement_api.Services.StatusPromotion;
 using Recrutement_api.Services.CvExtraction;
 
 namespace Recrutement_api.Services.AI
@@ -22,6 +23,7 @@ namespace Recrutement_api.Services.AI
         private readonly ICvExtractionService _cvExtractionService;
         private readonly HttpClient _httpClient;
         private readonly ILogger<AiOrchestratorService> _logger;
+        private readonly CandidateStatusService _candidateStatusService;
 
         private readonly string _aiBaseUrl = "http://127.0.0.1:8000/ai";
 
@@ -29,12 +31,14 @@ namespace Recrutement_api.Services.AI
             ApplicationDbContext dbContext,
             ICvExtractionService cvExtractionService,
             HttpClient httpClient,
-            ILogger<AiOrchestratorService> logger)
+            ILogger<AiOrchestratorService> logger,
+            CandidateStatusService candidateStatusService)
         {
             _dbContext            = dbContext;
             _cvExtractionService  = cvExtractionService;
             _httpClient           = httpClient;
             _logger               = logger;
+            _candidateStatusService = candidateStatusService;
         }
 
 
@@ -81,17 +85,11 @@ namespace Recrutement_api.Services.AI
             }
         }
 
-        /// <summary>
-        /// Retourne true si le texte est utilisable par l'IA (longueur suffisante).
-        /// </summary>
+    
         private static bool HasUsableText(AnalyseCV analyse)
             => !string.IsNullOrWhiteSpace(analyse.TexteExtrait)
                && analyse.TexteExtrait.Trim().Length >= 20;
 
-        /// <summary>
-        /// Appelle le microservice Python.
-        /// Gère 400 (texte vide) et autres erreurs sans crasher.
-        /// </summary>
         private async Task<T?> PostToAiAsync<T>(string endpoint, object payload)
         {
             var content = new StringContent(
@@ -146,12 +144,21 @@ namespace Recrutement_api.Services.AI
             _dbContext.AnalysesCV.Update(analyse);
             await _dbContext.SaveChangesAsync();
 
+            // ── Auto-promote status based on score (only from "Nouvelle") ──────
+            var promotion = await _candidateStatusService.ApplyScoreRulesAsync(
+                candidatureId, analyse.Score ?? 0f);
+
             return new
             {
                 score      = analyse.Score,
                 domainFit  = aiResult?.DomainFit,
                 technical  = aiResult?.Technical,
                 experience = aiResult?.Experience,
+                // Status promotion info
+                newStatus     = promotion.NewStatus,
+                statusChanged = promotion.StatusChanged,
+                enableQuiz    = promotion.EnableQuiz,
+                flags         = promotion.Flags,
             };
         }
 
@@ -193,9 +200,7 @@ namespace Recrutement_api.Services.AI
             return new { classification = analyse.Classification };
         }
 
-        // ── Résumé (TICKET-025) ────────────────────────────────────────────────
-        // Le résumé est contextualisé : on envoie aussi le titre + la description
-        // de l'offre pour que l'IA croise le profil avec les exigences du poste.
+        
         public async Task<object> SummarizeCvAsync(Guid candidatureId)
         {
             var analyse = await EnsureTextExtractedAsync(candidatureId);
@@ -322,6 +327,91 @@ namespace Recrutement_api.Services.AI
             return aiResult ?? new AiQuizResponse();
         }
 
+        // ── Entretien AI ──────────────────────────────────────────────────────
+        public async Task<object> GenerateInterviewQuestionsAsync(Guid candidatureId, int numQuestions = 5, string langue = "FR")
+        {
+            var candidature = await _dbContext.Candidatures.Include(c => c.Offre).FirstOrDefaultAsync(c => c.Id == candidatureId);
+            if (candidature == null || candidature.Offre == null) throw new Exception("Candidature ou Offre introuvable");
+
+            var payload = new
+            {
+                titreOffre = candidature.Offre.Titre,
+                description = candidature.Offre.Description,
+                langue = langue,
+                num_questions = numQuestions
+            };
+            return await PostToAiAsync<object>("generate-interview-questions", payload) ?? new { questions = Array.Empty<string>() };
+        }
+
+        public async Task<object> GenerateTtsAsync(string text, string langue = "FR")
+        {
+            var payload = new { text, langue };
+            return await PostToAiAsync<object>("tts-elevenlabs", payload) ?? new { };
+        }
+
+        public async Task<object> GenerateSttAsync(System.IO.Stream audioStream, string filename)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                var streamContent = new StreamContent(audioStream);
+                // The API might need content type depending on the browser's recording
+                streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/webm");
+                content.Add(streamContent, "audio", filename);
+
+                var response = await _httpClient.PostAsync($"{_aiBaseUrl}/stt-elevenlabs", content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var detail = await response.Content.ReadAsStringAsync();
+                    _logger.LogError($"[AI] stt-elevenlabs → {(int)response.StatusCode} : {detail}");
+                    return new { text = "", error = detail };
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                return JsonSerializer.Deserialize<object>(json, options) ?? new { text = "" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[AI] Impossible de joindre stt-elevenlabs : {ex.Message}");
+                return new { text = "", error = ex.Message };
+            }
+        }
+
+        // ── ReplyInterviewAsync is disabled — simplified interview uses pre-generated questions ──
+        // public async Task<object> ReplyInterviewAsync(Guid entretienId, string questionActuelle, string reponseCandidat, string langue = "FR")
+        // { ... }
+
+        public async Task<object> EvaluateInterviewAsync(Guid entretienId)
+        {
+            var entretien = await _dbContext.EntretiensIA
+                .Include(e => e.Candidature).ThenInclude(c => c.Offre)
+                .FirstOrDefaultAsync(e => e.Id == entretienId) ?? throw new Exception("Entretien introuvable");
+
+            var payload = new
+            {
+                transcript = entretien.Transcript,
+                titreOffre = entretien.Candidature.Offre.Titre,
+                description = entretien.Candidature.Offre.Description,
+                langue = entretien.Langue
+            };
+
+            var aiResult = await PostToAiAsync<AiEvaluateResponse>("evaluate-answers", payload);
+
+            if (aiResult != null)
+            {
+                entretien.Score = aiResult.Score;
+                entretien.Summary = aiResult.Summary;
+                entretien.Strengths = JsonSerializer.Serialize(aiResult.Strengths);
+                entretien.Weaknesses = JsonSerializer.Serialize(aiResult.Weaknesses);
+                await _dbContext.SaveChangesAsync();
+                return aiResult;
+            }
+
+            return new { score = 0, summary = "Erreur", strengths = Array.Empty<string>(), weaknesses = Array.Empty<string>() };
+        }
+
         // ── DTOs ───────────────────────────────────────────────────────────────
         private class AiQuizQuestion
         {
@@ -363,5 +453,15 @@ namespace Recrutement_api.Services.AI
         private class AiExperienceResponse { public object[] Experiences  { get; set; } = Array.Empty<object>(); }
         private class AiCompaniesResponse  { public object[] Companies    { get; set; } = Array.Empty<object>(); }
         private class AiCertificationsResponse { public object[] Certifications { get; set; } = Array.Empty<object>(); }
+        
+        private class AiReplyResponse { public string Reply { get; set; } = ""; }
+        
+        private class AiEvaluateResponse
+        {
+            public float Score { get; set; }
+            public string Summary { get; set; } = "";
+            public string[] Strengths { get; set; } = Array.Empty<string>();
+            public string[] Weaknesses { get; set; } = Array.Empty<string>();
+        }
     }
 }

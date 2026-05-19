@@ -6,7 +6,10 @@ namespace Recrutement_api.DTOs
     public class ScheduleQuizRequestDto
     {
         public Guid CandidatureId { get; set; }
-        public DateTime ScheduledDate { get; set; }
+        /// <summary>When the quiz becomes accessible.</summary>
+        public DateTime AvailableFrom { get; set; }
+        /// <summary>Last moment the quiz can be submitted.</summary>
+        public DateTime Deadline { get; set; }
         public int TimePerQuestion { get; set; } = 60;
         public string? Instructions { get; set; }
         public List<QuizQuestionDto> Questions { get; set; } = new();
@@ -23,30 +26,26 @@ namespace Recrutement_api.DTOs
         public int TimeLimit { get; set; } = 60;
     }
 
+    public class QuestionAnswerDto
+    {
+        public int QuestionId { get; set; }
+        public int AnswerIndex { get; set; }
+        public int TimeSpent { get; set; }
+    }
+
     public class SubmitQuizResultDto
     {
         public string QuizToken { get; set; } = "";
-        public int Score { get; set; }
-        public int Total { get; set; }
-        public float Percentage { get; set; }
-        public string Grade { get; set; } = "";
-        public List<int> Answers { get; set; } = new();
-        public List<int> TimeSpent { get; set; } = new();
+        public List<QuestionAnswerDto> Answers { get; set; } = new();
     }
 
-    public class ConfirmCompletionDto
+    public class SaveProgressDto
     {
         public string QuizToken { get; set; } = "";
-        public bool Completed { get; set; } = true;
-        public DateTime? ConfirmedAt { get; set; }
-        
-        public int? Score { get; set; }
-        public int? Total { get; set; }
-        public float? Percentage { get; set; }
-        public string? Grade { get; set; }
-        public int? TotalTimeSec { get; set; }
-        public List<QuizResultDetailDto>? Results { get; set; }
+        public List<QuestionAnswerDto> Answers { get; set; } = new();
     }
+
+    // Removed ConfirmCompletionDto as it's no longer used.
 
     public class QuizResultDetailDto
     {

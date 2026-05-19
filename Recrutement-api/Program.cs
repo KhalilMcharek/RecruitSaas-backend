@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Recrutement_api.Configuration;
 using Recrutement_api.Data;
 using Recrutement_api.DTOs;
@@ -14,6 +16,7 @@ using Recrutement_api.Services.Interfaces;
 using Recrutement_api.Services.Shared;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.Services.AI;
+using Recrutement_api.Services.StatusPromotion;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,6 +124,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailQueueService>
 builder.Services.AddScoped<IExpertService, ExpertUserService>();
 builder.Services.AddScoped<CandidateProfileService>();
 builder.Services.AddScoped<TenantProfileService>();
+builder.Services.AddScoped<CandidateStatusService>();
 builder.Services.AddScoped<IAiOrchestratorService, AiOrchestratorService>();
 builder.Services.AddScoped<ISavedJobService, SavedJobService>();
 builder.Services.AddScoped<NotificationService>();
@@ -129,6 +133,41 @@ builder.Services.AddScoped<Recrutement_api.Services.Entretien.IEntretienService,
 builder.Services.AddScoped<Recrutement_api.Services.Quiz.IQuizService, Recrutement_api.Services.Quiz.QuizService>();
 
 builder.Services.AddScoped<Recrutement_api.Services.TenantServices.ReportService>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    // Global Policy (Par défaut)
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+
+    // AiServicesPolicy
+    options.AddFixedWindowLimiter(policyName: "AiServicesPolicy", options =>
+    {
+        options.PermitLimit = 5;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 2;
+    });
+
+    // AuthPolicy
+    options.AddFixedWindowLimiter(policyName: "AuthPolicy", options =>
+    {
+        options.PermitLimit = 5;
+        options.Window = TimeSpan.FromMinutes(5);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 0;
+    });
+});
 
 var app = builder.Build();
 
@@ -167,7 +206,10 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// 3. Auth
+// 3. Rate Limiter
+app.UseRateLimiter();
+
+// 4. Auth
 app.UseAuthentication();
 app.UseAuthorization();
 

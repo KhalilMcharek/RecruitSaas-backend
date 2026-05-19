@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Recrutement_api.Services.TenantServices;
 using Recrutement_api.DTOs.Candidature;
@@ -140,6 +141,7 @@ namespace Recrutement_api.Controllers
         // ================= AI =================
 
         [HttpPost("{id}/ai/score")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> CalculateScore(Guid id)
         {
             var res = await _aiService.CalculateScoreAsync(id);
@@ -147,6 +149,7 @@ namespace Recrutement_api.Controllers
         }
 
         [HttpPost("{id}/ai/classify")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> Classify(Guid id)
         {
             var res = await _aiService.ClassifyCandidateAsync(id);
@@ -154,6 +157,7 @@ namespace Recrutement_api.Controllers
         }
 
         [HttpPost("{id}/ai/summarize")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> Summarize(Guid id)
         {
             var res = await _aiService.SummarizeCvAsync(id);
@@ -161,6 +165,7 @@ namespace Recrutement_api.Controllers
         }
 
         [HttpPost("{id}/ai/extract-skills")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> ExtractSkills(Guid id)
         {
             var res = await _aiService.ExtractCompetencesAsync(id);
@@ -168,12 +173,14 @@ namespace Recrutement_api.Controllers
         }
 
         [HttpPost("{id}/ai/extract-experience")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> ExtractExperience(Guid id)
         {
             var res = await _aiService.ExtractExperienceAsync(id);
             return Ok(res);
         }
         [HttpPost("{id}/ai/extract-certifications")]
+        [EnableRateLimiting("AiServicesPolicy")]
         public async Task<IActionResult> ExtractCertifications(Guid id)
         {
             var res = await _aiService.ExtractCertificationsAsync(id);

@@ -15,5 +15,7 @@ namespace Recrutement_api.DTOs.Offre
         public string? Localisation { get; set; }
 
         public bool? EstPublie { get; set; }
+        public DateTime? Deadline { get; set; }
+        public int? MaxApplications { get; set; }
     }
 }

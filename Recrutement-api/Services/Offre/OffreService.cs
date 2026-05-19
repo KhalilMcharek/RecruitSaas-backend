@@ -12,7 +12,7 @@ namespace Recrutement_api.Services
         private readonly ApplicationDbContext _context;
         private readonly ICurrentUserService _currentUser;
         private readonly ILinkGeneratorService _linkGenerator;
-        private readonly NotificationService _notificationService;  // ← INJECTÉ
+        private readonly NotificationService _notificationService;  
 
         public OffreService(
             ApplicationDbContext context,
@@ -48,6 +48,8 @@ namespace Recrutement_api.Services
                 Localisation = dto.Localisation,
                 TypeContrat = dto.TypeContrat,
                 EstPublie = dto.EstPublie,  // Si publiée directement
+                Deadline = NormalizeToUtc(dto.Deadline),
+                MaxApplications = dto.MaxApplications,
                 IsPublicLinkEnabled = false,
                 CreeLe = DateTime.UtcNow
             };
@@ -140,6 +142,22 @@ namespace Recrutement_api.Services
                 }
             }
 
+            // Lazy auto-closure: ferme automatiquement les offres dont la deadline est dépassée
+            var now = DateTime.UtcNow;
+            var offersToClose = await query
+                .Where(o => o.EstPublie && o.Deadline.HasValue && o.Deadline.Value < now && !o.IsClosed)
+                .ToListAsync();
+
+            if (offersToClose.Any())
+            {
+                foreach (var offre in offersToClose)
+                {
+                    offre.IsClosed = true;
+                    offre.ClosedAt = now;
+                }
+                await _context.SaveChangesAsync();
+            }
+
             if (!string.IsNullOrWhiteSpace(filter))
             {
                 switch (filter.ToLower())
@@ -170,6 +188,9 @@ namespace Recrutement_api.Services
 
             if (offre == null)
                 throw new Exception("Offre introuvable");
+
+            if (offre.IsClosed && publier)
+                throw new Exception("Cannot publish a closed offer");
 
             var ancienStatut = offre.EstPublie;
             offre.EstPublie = publier;
@@ -402,6 +423,8 @@ namespace Recrutement_api.Services
             offre.Titre = dto.Titre;
             offre.Description = dto.Description;
             offre.Localisation = dto.Localisation;
+            offre.Deadline = NormalizeToUtc(dto.Deadline);
+            offre.MaxApplications = dto.MaxApplications;
 
             if (dto.TypeContrat.HasValue)
             {
@@ -663,6 +686,10 @@ namespace Recrutement_api.Services
                     : null,
                 PublicLinkExpiresAt = o.PublicLinkExpiresAt,
                 CreeLe = o.CreeLe,
+                IsClosed = o.IsClosed,
+                ClosedAt = o.ClosedAt,
+                Deadline = o.Deadline,
+                MaxApplications = o.MaxApplications,
                 EntrepriseId = o.EntrepriseId,
                 NomEntreprise = o.Entreprise?.Nom,
                 NombreCandidats = o.Candidatures?.Count ?? 0
@@ -670,11 +697,46 @@ namespace Recrutement_api.Services
         }
 
         // ─────────────────────────────────────────────────────────────
-        // GÉNÉRER UN TOKEN SÉCURISÉ (Helper privé)
+        // CLOSE OFFRE MANUALLY
+        // ─────────────────────────────────────────────────────
+        public async Task<OffreResponseDto> CloseOffreAsync(Guid offreId)
+        {
+            var tenantId = _currentUser.TenantId;
+
+            var offre = await _context.OffresEmploi
+                .Include(o => o.Entreprise)
+                .FirstOrDefaultAsync(o => o.Id == offreId && o.Entreprise.TenantId == tenantId);
+
+            if (offre == null)
+                throw new Exception("Offre introuvable");
+
+            // Manual closure
+            offre.IsClosed = true;
+            offre.ClosedAt = DateTime.UtcNow;
+            offre.EstPublie = false;
+
+            await _context.SaveChangesAsync();
+            return MapToResponse(offre);
+        }
+
         // ─────────────────────────────────────────────────────────────
+        // GÉNÉRER UN TOKEN SÉCURISÉ (Helper privé)
+        // ─────────────────────────────────────────────────────
         private string GenerateSecureToken()
         {
             return Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+        }
+
+        private static DateTime? NormalizeToUtc(DateTime? value)
+        {
+            if (!value.HasValue) return null;
+
+            var date = value.Value;
+            if (date.Kind == DateTimeKind.Utc) return date;
+            if (date.Kind == DateTimeKind.Local) return date.ToUniversalTime();
+
+            // HTML datetime-local usually arrives with Unspecified kind.
+            return DateTime.SpecifyKind(date, DateTimeKind.Local).ToUniversalTime();
         }
     }
 }

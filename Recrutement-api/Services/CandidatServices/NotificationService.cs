@@ -22,7 +22,8 @@ namespace Recrutement_api.Services
             Guid candidatId,
             Guid candidatureId,
             string offreTitre,
-            DateTime scheduledDate,
+            DateTime availableFrom,
+            DateTime deadline,
             string quizToken,
             int timePerQuestion)
         {
@@ -70,7 +71,7 @@ namespace Recrutement_api.Services
                     Type          = "quiz_invitation",
                     Title         = $"📝 Technical Assessment — {offreTitre}",
                     Body          = $"You have been invited to take a technical quiz for \"{offreTitre}\". " +
-                                    $"Scheduled for {scheduledDate:MMM dd, yyyy 'at' HH:mm}. " +
+                                    $"Available from {availableFrom:MMM dd, yyyy 'at' HH:mm} until {deadline:MMM dd, yyyy 'at' HH:mm} UTC. " +
                                     $"Each question has a {timePerQuestion}s time limit.",
                     IsRead        = false,
                     CreeLe        = DateTime.UtcNow,
